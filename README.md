@@ -9,5 +9,8 @@ See https://go.dev/doc/install
 
 ```shell
 $ ./build.sh
+
+# run it...
+$ bin/cw
 ```
 
