@@ -27,7 +27,11 @@ var uliCmd = &cobra.Command{
 		}
 
 		pathSuffix := strings.Trim(cwd[len(sitesDir):], "/")
-		domain := pathSuffix[:strings.Index(pathSuffix, "/")]
+		slashIndex := strings.Index(pathSuffix, "/")
+		domain := pathSuffix
+		if slashIndex != -1 {
+			domain = pathSuffix[:strings.Index(pathSuffix, "/")]
+		}
 
 		drushCmd := exec.Command("drush", "uli", "--uid", strconv.Itoa(uid), "--no-browser")
 		stdout, err := drushCmd.Output()
@@ -35,9 +39,25 @@ var uliCmd = &cobra.Command{
 		if err != nil {
 			fmt.Println(err.Error())
 			return
-		}
+		} else {
+			LOGIN_URL := strings.TrimSpace(strings.Replace(string(stdout), "default", domain+".test", 1))
+			LOGIN_ARRAY := []string{LOGIN_URL, "?destination=admin/reports/status"}
+			LOGIN_URL_WITH_REDIRECT := strings.Join(LOGIN_ARRAY, "")
 
-		fmt.Println(strings.Replace(string(stdout), "default", domain+".test", 1))
+			fmt.Println(LOGIN_URL_WITH_REDIRECT)
+
+			truncateCmd := exec.Command("drush", "sqlq", "\"TRUNCATE SESSIONS\"")
+			openCmd := exec.Command("open", LOGIN_URL_WITH_REDIRECT)
+
+			err = truncateCmd.Run()
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+			err = openCmd.Run()
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+		}
 	},
 }
 
