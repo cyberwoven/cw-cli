@@ -46,7 +46,7 @@ var uliCmd = &cobra.Command{
 
 			fmt.Println(LOGIN_URL_WITH_REDIRECT)
 
-			truncateCmd := exec.Command("drush", "sqlq", "\"TRUNCATE SESSIONS\"")
+			truncateCmd := exec.Command("drush", "sqlq", "TRUNCATE SESSIONS")
 			openCmd := exec.Command("open", LOGIN_URL_WITH_REDIRECT)
 
 			err = truncateCmd.Run()

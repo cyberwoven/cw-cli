@@ -13,8 +13,8 @@ import (
 // rootCmd represents the base command when called without any subcommands
 var rootCmd = &cobra.Command{
 	Use:     "cw",
-	Short:   "Cyberwoven web site development tool",
-	Version: "0.2.0",
+	Short:   "Cyberwoven local web site development tool",
+	Version: "0.2.1",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
