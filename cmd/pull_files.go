@@ -5,14 +5,14 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"log"
 	"os"
 	"os/exec"
 	"path"
 	"strings"
-
-	// "strings"
 
 	"github.com/spf13/cobra"
 )
@@ -79,6 +79,8 @@ var pullFilesCmd = &cobra.Command{
 		fmt.Println("[domain_local]: ", domain_local)
 		fmt.Println("[domain_forest]: ", domain_forest)
 		fmt.Println("[branch_name]: ", branch_name)
+		fmt.Println("[DEFAULT_DIR_FOREST]: ", DEFAULT_DIR_FOREST)
+		fmt.Println("[DEFAULT_DIR_LOCAL]: ", DEFAULT_DIR_LOCAL)
 
 		if strings.Contains(drupal_root, "/web") {
 			is_pantheon = true
@@ -99,30 +101,83 @@ var pullFilesCmd = &cobra.Command{
 		}
 
 		if !is_pantheon {
+			rsyncCmd := exec.Command("rsync",
+				"-vcrtzP",
+				"forest-web:"+DEFAULT_DIR_FOREST+"/files",
+				DEFAULT_DIR_LOCAL,
+				"--stats",
+				// "--dry-run",
+				"--exclude=advagg_css",
+				"--exclude=advagg_js",
+				"--exclude=css",
+				"--exclude=ctools",
+				"--exclude=js",
+				"--exclude=php",
+				"--exclude=styles",
+				"--exclude=tmp")
+
+			stdout, _ := rsyncCmd.StdoutPipe()
+			stderr, _ := rsyncCmd.StderrPipe()
+
+			fmt.Println("[Running Command]: " + rsyncCmd.String())
+
+			_ = rsyncCmd.Start()
+
+			scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
+			scanner.Split(bufio.ScanLines)
+			for scanner.Scan() {
+				m := scanner.Text()
+				fmt.Println(m)
+			}
+			_ = rsyncCmd.Wait()
 
 		} else {
-			fmt.Println("PANTHEON: creating files tarball ...")
-			// terminusCmd := exec.Command("drush", "status", "--fields=db-name,root,drupal-version", "--format=list")
-			// out, err := terminusCmd.Output()
-			// if err != nil {
-			// 	log.Fatal(err)
-			// 	fmt.Println("is_pantheon error")
-			// } else {
-			// 	fmt.Println(out)
-			// }
+
+			// CREATE BACKUP =========================================================
+			fmt.Println("[PANTHEON]: creating files tarball... this may take a minute...")
+			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", drupal_site_name+".dev", "--element=files")
+			backupCreateStdout, _ := terminusBackupCreateCmd.StdoutPipe()
+			backupCreateStderr, _ := terminusBackupCreateCmd.StderrPipe()
+			// fmt.Println("[Running Command]: " + terminusBackupCreateCmd.String())
+			_ = terminusBackupCreateCmd.Start()
+			backupCreateScanner := bufio.NewScanner(io.MultiReader(backupCreateStdout, backupCreateStderr))
+			backupCreateScanner.Split(bufio.ScanLines)
+			for backupCreateScanner.Scan() {
+				m := backupCreateScanner.Text()
+				fmt.Println(m)
+			}
+			_ = terminusBackupCreateCmd.Wait()
+
+			// GET BACKUP ============================================================
+			fmt.Println("[PANTHEON]: downloading files tarball...")
+			terminusBackupGetCmd := exec.Command("terminus", "backup:get", drupal_site_name+".dev", "--element=files")
+			// fmt.Println("[Running Command]: " + terminusBackupGetCmd.String())
+			backupGetStdout, _ := terminusBackupGetCmd.Output()
+			// fmt.Println("[PANTHEON]: backup url - " + string(backupGetStdout))
+			wgetCmd := exec.Command("wget", "--quiet", "--show-progress", strings.TrimSpace(string(backupGetStdout)), "-O", "/tmp/files_"+drupal_dbname+".tar.gz")
+			wgetStdout, _ := wgetCmd.StdoutPipe()
+			wgetStderr, _ := wgetCmd.StderrPipe()
+			// fmt.Println("[Running Command]: " + wgetCmd.String())
+			_ = wgetCmd.Start()
+			wgetScanner := bufio.NewScanner(io.MultiReader(wgetStderr, wgetStdout))
+			wgetScanner.Split(bufio.ScanLines)
+			for wgetScanner.Scan() {
+				m := wgetScanner.Text()
+				fmt.Println(m)
+			}
+
+			// EXTRACT BACKUP ========================================================
+			fmt.Println("[PANTHEON]: extracting files tarball...")
+			mkdirCmd := exec.Command("mkdir", "/tmp/files_"+drupal_dbname)
+			_ = mkdirCmd.Run()
+			tarCmd := exec.Command("tar", "--directory=/tmp/files_"+drupal_dbname, "-xzvf", "/tmp/files_"+drupal_dbname+".tar.gz")
+			_ = tarCmd.Run()
+			// COPY EXTRACTED FILES ==================================================
+			fmt.Println("[PANTHEON]: copying files into 'sites/default/files/' directory...")
+			copyExtractCmd := exec.Command("rsync", "-vcrP", "--stats", "/tmp/files_"+drupal_dbname+"/files_dev/", drupal_root+"/sites/default/files/")
+			_ = copyExtractCmd.Run()
+			fmt.Println("[PANTHEON]: Finished pulling down files to local environment!")
 		}
-
-		// strings.Index(drupal_root, "")
-
-		// filesCmd.Stdout = os.Stdout
-		// filesCmd.Stderr = os.Stderr
-		// filesCmd.Start()
-		// filesCmd.Wait()
-		// thing := fmt.Sprint(filesCmd.Stdout)
-		// stuff := strings.Split(thing, "\n")
-		// fmt.Printf("%s", stuff)
-
-		// dbname, root dir, drupal version
 	},
 }
 
