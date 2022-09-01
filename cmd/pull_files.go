@@ -8,7 +8,6 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"os"
 	"os/exec"
 	"strings"
 
@@ -89,6 +88,7 @@ var pullFilesCmd = &cobra.Command{
 				m := wgetScanner.Text()
 				fmt.Println(m)
 			}
+			_ = wgetCmd.Wait()
 
 			// EXTRACT BACKUP ========================================================
 			fmt.Println("[PANTHEON]: extracting files tarball...")
@@ -120,13 +120,13 @@ func init() {
 }
 
 // https://stackoverflow.com/questions/10510691/how-to-check-whether-a-file-or-directory-exists
-func exists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
-}
+// func exists(path string) (bool, error) {
+// 	_, err := os.Stat(path)
+// 	if err == nil {
+// 		return true, nil
+// 	}
+// 	if os.IsNotExist(err) {
+// 		return false, nil
+// 	}
+// 	return false, err
+// }

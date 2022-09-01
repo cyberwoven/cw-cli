@@ -74,19 +74,19 @@ func GetProjectVars() CwVars {
 	// DEFAULT_DIR_FOREST := `/var/www/vhosts/` + `/$BRANCH/pub/sites/default`
 	DEFAULT_DIR_LOCAL := fmt.Sprintf("%s/pub/sites/default", project_root)
 	DEFAULT_DIR_FOREST := fmt.Sprintf("/var/www/vhosts/%s/%s/pub/sites/default", domain_forest, branch_name)
-	fmt.Println(DEFAULT_DIR_LOCAL)
-	fmt.Println(DEFAULT_DIR_FOREST)
 
-	fmt.Println("[drupal_site_name]: ", drupal_site_name)
-	fmt.Println("[project_root]: ", project_root)
-	fmt.Println("[drupal_root]: ", drupal_root)
-	fmt.Println("[drupal_dbname]: ", drupal_dbname)
-	fmt.Println("[drupal_version]: ", drupal_version)
-	fmt.Println("[domain_local]: ", domain_local)
-	fmt.Println("[domain_forest]: ", domain_forest)
-	fmt.Println("[branch_name]: ", branch_name)
-	fmt.Println("[DEFAULT_DIR_FOREST]: ", DEFAULT_DIR_FOREST)
-	fmt.Println("[DEFAULT_DIR_LOCAL]: ", DEFAULT_DIR_LOCAL)
+	// fmt.Println(DEFAULT_DIR_LOCAL)
+	// fmt.Println(DEFAULT_DIR_FOREST)
+	// fmt.Println("[drupal_site_name]: ", drupal_site_name)
+	// fmt.Println("[project_root]: ", project_root)
+	// fmt.Println("[drupal_root]: ", drupal_root)
+	// fmt.Println("[drupal_dbname]: ", drupal_dbname)
+	// fmt.Println("[drupal_version]: ", drupal_version)
+	// fmt.Println("[domain_local]: ", domain_local)
+	// fmt.Println("[domain_forest]: ", domain_forest)
+	// fmt.Println("[branch_name]: ", branch_name)
+	// fmt.Println("[DEFAULT_DIR_FOREST]: ", DEFAULT_DIR_FOREST)
+	// fmt.Println("[DEFAULT_DIR_LOCAL]: ", DEFAULT_DIR_LOCAL)
 
 	if strings.Contains(drupal_root, "/web") {
 		is_pantheon = true
