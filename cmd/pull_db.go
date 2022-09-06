@@ -29,7 +29,7 @@ var pullDbCmd = &cobra.Command{
 		var gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, vars.Drupal_dbname)
 
 		if !vars.Is_pantheon {
-			fmt.Printf("Pulling down database for %s. This could take awhile...\n", vars.Drupal_site_name)
+			fmt.Printf("[%s] Pulling down database, this could take awhile...\n", vars.Drupal_site_name)
 
 			var client *simplessh.Client
 			var err error
@@ -57,19 +57,19 @@ var pullDbCmd = &cobra.Command{
 
 			_, err = io.Copy(localFile, bytes.NewReader(res))
 			if err != nil {
-				fmt.Println("Something went wrong when copying temp db gzip.")
+				fmt.Printf("[%s] Something went wrong when copying temp db gzip.", vars.Drupal_site_name)
 				os.Exit(1)
 			}
 
 			_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
 			if err != nil {
-				fmt.Printf("Database \"%s\" does not exist. Creating...\n", vars.Drupal_dbname)
+				fmt.Printf("[%s] Database \"%s\" does not exist. Creating...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				_ = exec.Command("bash", "-c", fmt.Sprintf("mysqladmin create %s", vars.Drupal_dbname)).Run()
 
-				fmt.Printf("Restoring database \"%s\". This could take awhile...\n", vars.Drupal_dbname)
+				fmt.Printf("[%s] Restoring database \"%s\". This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
 				if err != nil {
-					fmt.Println("Something went wrong when restoring database.")
+					fmt.Printf("[%s] Something went wrong when restoring database.", vars.Drupal_site_name)
 					fmt.Println(err.Error())
 					os.Exit(1)
 				}
@@ -77,7 +77,7 @@ var pullDbCmd = &cobra.Command{
 		} else {
 
 			// CREATE BACKUP =========================================================
-			fmt.Printf("[PANTHEON]: creating database backup for \"%s\". This could take awhile...\n", vars.Drupal_dbname)
+			fmt.Printf("[%s] creating database backup for \"%s\". This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+".dev", "--element=db")
 			backupCreateStdout, _ := terminusBackupCreateCmd.StdoutPipe()
 			backupCreateStderr, _ := terminusBackupCreateCmd.StderrPipe()
@@ -92,7 +92,7 @@ var pullDbCmd = &cobra.Command{
 			_ = terminusBackupCreateCmd.Wait()
 
 			// GET BACKUP ============================================================
-			fmt.Println("[PANTHEON]: downloading database backup...")
+			fmt.Printf("[%s] downloading database backup...\n", vars.Drupal_site_name)
 			terminusBackupGetCmd := exec.Command("terminus", "backup:get", vars.Drupal_site_name+".dev", "--element=db")
 			backupGetStdout, _ := terminusBackupGetCmd.Output()
 
@@ -110,31 +110,31 @@ var pullDbCmd = &cobra.Command{
 			_ = wgetCmd.Wait()
 
 			// EXTRACT BACKUP ========================================================
-			fmt.Println("[PANTHEON]: extracting database backup...")
+			fmt.Printf("[%s] extracting database backup...\n", vars.Drupal_site_name)
 
 			_, err := exec.Command("bash", "-c", gunzipCmdString).Output()
 			if err != nil {
-				fmt.Printf("Database \"%s\" does not exist. Creating...\n", vars.Drupal_dbname)
+				fmt.Printf("[%s] Database \"%s\" does not exist. Creating...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				_ = exec.Command("bash", "-c", fmt.Sprintf("mysqladmin create %s", vars.Drupal_dbname)).Run()
 
-				fmt.Printf("Restoring database \"%s\". This could take awhile...\n", vars.Drupal_dbname)
+				fmt.Printf("[%s] Restoring database \"%s\". This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
 				if err != nil {
-					fmt.Println("Something went wrong when restoring database.")
+					fmt.Printf("[%s] Something went wrong when restoring database.\n", vars.Drupal_site_name)
 					fmt.Println(err.Error())
 					os.Exit(1)
 				}
 			}
 		}
 
-		fmt.Println("Cleaning up temp files...")
+		fmt.Printf("[%s] Cleaning up temp files...", vars.Drupal_site_name)
 		err := os.Remove(tempFilePath)
 		if err != nil {
-			fmt.Println("Something went wrong when cleaning up temp files.")
+			fmt.Printf("[%s] Something went wrong when cleaning up temp files.", vars.Drupal_site_name)
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
-		fmt.Println("Finished!")
+		fmt.Printf("[%s] Finished pulling down database!\n\n", vars.Drupal_site_name)
 	},
 }
 

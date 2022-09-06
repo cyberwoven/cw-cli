@@ -42,7 +42,8 @@ var pullFilesCmd = &cobra.Command{
 			stdout, _ := rsyncCmd.StdoutPipe()
 			stderr, _ := rsyncCmd.StderrPipe()
 
-			fmt.Println("[Running Command]: " + rsyncCmd.String())
+			// fmt.Println("[Running Command]: " + rsyncCmd.String())
+			fmt.Printf("[%s] Pulling down files...\n", vars.Drupal_site_name)
 
 			_ = rsyncCmd.Start()
 
@@ -57,7 +58,7 @@ var pullFilesCmd = &cobra.Command{
 		} else {
 
 			// CREATE BACKUP =========================================================
-			fmt.Println("[PANTHEON]: creating files tarball... this may take a minute...")
+			fmt.Printf("[%s]: creating files tarball... this may take a minute...\n", vars.Drupal_site_name)
 			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+".dev", "--element=files")
 			backupCreateStdout, _ := terminusBackupCreateCmd.StdoutPipe()
 			backupCreateStderr, _ := terminusBackupCreateCmd.StderrPipe()
@@ -72,7 +73,7 @@ var pullFilesCmd = &cobra.Command{
 			_ = terminusBackupCreateCmd.Wait()
 
 			// GET BACKUP ============================================================
-			fmt.Println("[PANTHEON]: downloading files tarball...")
+			fmt.Printf("[%s]: downloading files tarball...\n", vars.Drupal_site_name)
 			terminusBackupGetCmd := exec.Command("terminus", "backup:get", vars.Drupal_site_name+".dev", "--element=files")
 			// fmt.Println("[Running Command]: " + terminusBackupGetCmd.String())
 			backupGetStdout, _ := terminusBackupGetCmd.Output()
@@ -91,17 +92,19 @@ var pullFilesCmd = &cobra.Command{
 			_ = wgetCmd.Wait()
 
 			// EXTRACT BACKUP ========================================================
-			fmt.Println("[PANTHEON]: extracting files tarball...")
+			fmt.Printf("[%s]: extracting files tarball...\n", vars.Drupal_site_name)
 			mkdirCmd := exec.Command("mkdir", "/tmp/files_"+vars.Drupal_dbname)
 			_ = mkdirCmd.Run()
 			tarCmd := exec.Command("tar", "--directory=/tmp/files_"+vars.Drupal_dbname, "-xzvf", "/tmp/files_"+vars.Drupal_dbname+".tar.gz")
 			_ = tarCmd.Run()
 			// COPY EXTRACTED FILES ==================================================
-			fmt.Println("[PANTHEON]: copying files into 'sites/default/files/' directory...")
+			fmt.Printf("[%s]: copying files into 'sites/default/files/' directory...\n", vars.Drupal_site_name)
 			copyExtractCmd := exec.Command("rsync", "-vcrP", "--stats", "/tmp/files_"+vars.Drupal_dbname+"/files_dev/", vars.Drupal_root+"/sites/default/files/")
 			_ = copyExtractCmd.Run()
-			fmt.Println("[PANTHEON]: Finished pulling down files to local environment!")
+			fmt.Printf("[%s]: Finished pulling down files to local environment!\n", vars.Drupal_site_name)
 		}
+
+		fmt.Printf("[%s] Finished pulling down files!\n\n", vars.Drupal_site_name)
 	},
 }
 

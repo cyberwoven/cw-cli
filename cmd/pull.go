@@ -5,8 +5,6 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 )
 
@@ -16,7 +14,9 @@ var pullCmd = &cobra.Command{
 	Short: "Pull the current site's database and/or files",
 
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("pull called")
+		// https://stackoverflow.com/questions/43747075/cobra-commander-how-to-call-a-command-from-another-command
+		pullDbCmd.Run(cmd, []string{})
+		pullFilesCmd.Run(cmd, []string{})
 	},
 }
 
