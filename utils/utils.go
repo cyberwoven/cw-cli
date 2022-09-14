@@ -11,6 +11,8 @@ import (
 	"os/exec"
 	"path"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
 type CwVars struct {
@@ -119,4 +121,34 @@ func Exists(path string) (bool, error) {
 		return false, nil
 	}
 	return false, err
+}
+
+func InitEnv(projectRoot string) {
+	viper.SetEnvPrefix("CWCWLI")
+	viper.AutomaticEnv()
+	viper.SetConfigName("default")
+	viper.SetConfigType("env")
+	viper.AddConfigPath("$HOME/.cw")
+	if err := viper.ReadInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Println("Config file not found in ~/.cw")
+			fmt.Println(err.Error())
+			os.Exit(1)
+		} else {
+			fmt.Println("Config file was found but another error was produced")
+			fmt.Println(err.Error())
+			os.Exit(1)
+		}
+	}
+
+	viper.SetConfigName("config")
+	viper.AddConfigPath(projectRoot + "/.cw")
+	if err := viper.MergeInConfig(); err != nil {
+		fmt.Println(err.Error())
+	}
+
+	// fmt.Println("config found, starting app")
+	// fmt.Printf("CWCLI_SSH_USER: %s\n", viper.Get("CWCLI_SSH_USER"))
+	// fmt.Printf("CWCLI_SSH_TEST_SERVER: %s\n", viper.Get("CWCLI_SSH_TEST_SERVER"))
+	// viper.MergeInConfig()
 }

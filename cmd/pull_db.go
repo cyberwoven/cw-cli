@@ -16,6 +16,7 @@ import (
 
 	"github.com/sfreiberg/simplessh"
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // pullDbCmd represents the pullDb command
@@ -27,6 +28,9 @@ var pullDbCmd = &cobra.Command{
 		var tempFilePath string = fmt.Sprintf("/tmp/db_%s.sql.gz", vars.Drupal_dbname)
 		var createBackupString string = fmt.Sprintf("mysqldump %s | gzip", vars.Drupal_dbname)
 		var gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, vars.Drupal_dbname)
+		cwutils.InitEnv(vars.Project_root)
+		var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
+		var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
 
 		if !vars.Is_pantheon {
 			fmt.Printf("[%s] Pulling down database, this could take awhile...\n", vars.Drupal_site_name)
@@ -34,7 +38,7 @@ var pullDbCmd = &cobra.Command{
 			var client *simplessh.Client
 			var err error
 
-			if client, err = simplessh.ConnectWithKeyFile("forest-db.test.cyberwoven.net", "cyberwoven", ""); err != nil {
+			if client, err = simplessh.ConnectWithKeyFile(SSH_TEST_SERVER, SSH_USER, ""); err != nil {
 				fmt.Println(string(err.Error()))
 				os.Exit(1)
 			}
