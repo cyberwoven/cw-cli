@@ -8,11 +8,10 @@ import (
 	"bufio"
 	"fmt"
 	"io"
-	"log"
-	"os"
 	"os/exec"
-	"path"
 	"strings"
+
+	cwutils "cw-cli/utils"
 
 	"github.com/spf13/cobra"
 )
@@ -22,89 +21,13 @@ var pullFilesCmd = &cobra.Command{
 	Use:   "files",
 	Short: "Pull files from test to sandbox",
 	Run: func(cmd *cobra.Command, args []string) {
-		filesCmd := exec.Command("drush", "status", "--fields=db-name,root,drupal-version", "--format=list")
-		filesCmdOutput, err := filesCmd.Output()
-		if err != nil {
-			log.Fatal(err)
-			fmt.Println("drush error")
-		}
+		var vars = cwutils.GetProjectVars()
 
-		is_pantheon := false
-		strArr := strings.Split(string(filesCmdOutput), "\n")
-		drupal_dbname := strArr[0]
-		drupal_root := strArr[1]
-		drupal_version := strArr[2]
-		drupal_site_name := path.Base(path.Dir(drupal_root))
-		domain_local := drupal_site_name + ".test"
-		project_root := path.Dir(drupal_root)
-
-		forestCmd, err := exec.Command("/usr/bin/git", "-C", drupal_root, "config", "--get", "remote.origin.url").Output()
-		if err != nil {
-			log.Fatal(err)
-			fmt.Println("[error] get forest domain failed")
-		}
-		domain_forest := strings.TrimSpace(string(forestCmd))
-		domain_forest = path.Base(domain_forest)
-		domain_forest = strings.Replace(domain_forest, ".git", "", 1)
-
-		branchCmd, err := exec.Command("/usr/bin/git", "-C", drupal_root, "rev-parse", "--abbrev-ref", "HEAD").Output()
-		if err != nil {
-			log.Fatal(err)
-			fmt.Println("[error] get branch name failed")
-		}
-		branch_name := strings.TrimSpace(string(branchCmd))
-		branch_name = strings.ReplaceAll(branch_name, ".", "-")
-		branch_name = strings.ReplaceAll(branch_name, "/", "-")
-		branch_name = strings.ReplaceAll(branch_name, "_", "-")
-
-		// brewCmd, err := exec.Command("brew", "--prefix").Output()
-		// if err != nil {
-		// 	log.Fatal(err)
-		// 	fmt.Println("[error] get branch name failed")
-		// }
-		// brew := strings.TrimSpace(string(brewCmd))
-
-		// DEFAULT_DIR_LOCAL := brew + `/var/www/vhosts/` + domain_local + `var`
-		// DEFAULT_DIR_FOREST := `/var/www/vhosts/` + `/$BRANCH/pub/sites/default`
-		DEFAULT_DIR_LOCAL := fmt.Sprintf("%s/pub/sites/default", project_root)
-		DEFAULT_DIR_FOREST := fmt.Sprintf("/var/www/vhosts/%s/%s/pub/sites/default", domain_forest, branch_name)
-		fmt.Println(DEFAULT_DIR_LOCAL)
-		fmt.Println(DEFAULT_DIR_FOREST)
-
-		fmt.Println("[drupal_site_name]: ", drupal_site_name)
-		fmt.Println("[project_root]: ", project_root)
-		fmt.Println("[drupal_root]: ", drupal_root)
-		fmt.Println("[drupal_dbname]: ", drupal_dbname)
-		fmt.Println("[drupal_version]: ", drupal_version)
-		fmt.Println("[domain_local]: ", domain_local)
-		fmt.Println("[domain_forest]: ", domain_forest)
-		fmt.Println("[branch_name]: ", branch_name)
-		fmt.Println("[DEFAULT_DIR_FOREST]: ", DEFAULT_DIR_FOREST)
-		fmt.Println("[DEFAULT_DIR_LOCAL]: ", DEFAULT_DIR_LOCAL)
-
-		if strings.Contains(drupal_root, "/web") {
-			is_pantheon = true
-		}
-
-		isDirLocalExist, err := exists(DEFAULT_DIR_LOCAL)
-		if err != nil {
-			log.Fatal(err)
-			fmt.Println("[error] get branch name failed")
-		}
-
-		// fmt.Println(DEFAULT_DIR_LOCAL)
-		// fmt.Println(isDirLocalExist)
-
-		if !isDirLocalExist {
-			log.Fatal("ABORTING! Local default dir does not exist: " + DEFAULT_DIR_LOCAL)
-			os.Exit(1)
-		}
-
-		if !is_pantheon {
+		if !vars.Is_pantheon {
 			rsyncCmd := exec.Command("rsync",
 				"-vcrtzP",
-				"forest-web:"+DEFAULT_DIR_FOREST+"/files",
-				DEFAULT_DIR_LOCAL,
+				"forest-web:"+vars.DEFAULT_DIR_FOREST+"/files",
+				vars.DEFAULT_DIR_LOCAL,
 				"--stats",
 				// "--dry-run",
 				"--exclude=advagg_css",
@@ -119,7 +42,8 @@ var pullFilesCmd = &cobra.Command{
 			stdout, _ := rsyncCmd.StdoutPipe()
 			stderr, _ := rsyncCmd.StderrPipe()
 
-			fmt.Println("[Running Command]: " + rsyncCmd.String())
+			// fmt.Println("[Running Command]: " + rsyncCmd.String())
+			fmt.Printf("[%s] Pulling down files...\n", vars.Drupal_site_name)
 
 			_ = rsyncCmd.Start()
 
@@ -134,8 +58,8 @@ var pullFilesCmd = &cobra.Command{
 		} else {
 
 			// CREATE BACKUP =========================================================
-			fmt.Println("[PANTHEON]: creating files tarball... this may take a minute...")
-			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", drupal_site_name+".dev", "--element=files")
+			fmt.Printf("[%s]: creating files tarball... this may take a minute...\n", vars.Drupal_site_name)
+			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+".dev", "--element=files")
 			backupCreateStdout, _ := terminusBackupCreateCmd.StdoutPipe()
 			backupCreateStderr, _ := terminusBackupCreateCmd.StderrPipe()
 			// fmt.Println("[Running Command]: " + terminusBackupCreateCmd.String())
@@ -149,12 +73,12 @@ var pullFilesCmd = &cobra.Command{
 			_ = terminusBackupCreateCmd.Wait()
 
 			// GET BACKUP ============================================================
-			fmt.Println("[PANTHEON]: downloading files tarball...")
-			terminusBackupGetCmd := exec.Command("terminus", "backup:get", drupal_site_name+".dev", "--element=files")
+			fmt.Printf("[%s]: downloading files tarball...\n", vars.Drupal_site_name)
+			terminusBackupGetCmd := exec.Command("terminus", "backup:get", vars.Drupal_site_name+".dev", "--element=files")
 			// fmt.Println("[Running Command]: " + terminusBackupGetCmd.String())
 			backupGetStdout, _ := terminusBackupGetCmd.Output()
 			// fmt.Println("[PANTHEON]: backup url - " + string(backupGetStdout))
-			wgetCmd := exec.Command("wget", "--quiet", "--show-progress", strings.TrimSpace(string(backupGetStdout)), "-O", "/tmp/files_"+drupal_dbname+".tar.gz")
+			wgetCmd := exec.Command("wget", "--quiet", "--show-progress", strings.TrimSpace(string(backupGetStdout)), "-O", "/tmp/files_"+vars.Drupal_dbname+".tar.gz")
 			wgetStdout, _ := wgetCmd.StdoutPipe()
 			wgetStderr, _ := wgetCmd.StderrPipe()
 			// fmt.Println("[Running Command]: " + wgetCmd.String())
@@ -165,19 +89,22 @@ var pullFilesCmd = &cobra.Command{
 				m := wgetScanner.Text()
 				fmt.Println(m)
 			}
+			_ = wgetCmd.Wait()
 
 			// EXTRACT BACKUP ========================================================
-			fmt.Println("[PANTHEON]: extracting files tarball...")
-			mkdirCmd := exec.Command("mkdir", "/tmp/files_"+drupal_dbname)
+			fmt.Printf("[%s]: extracting files tarball...\n", vars.Drupal_site_name)
+			mkdirCmd := exec.Command("mkdir", "/tmp/files_"+vars.Drupal_dbname)
 			_ = mkdirCmd.Run()
-			tarCmd := exec.Command("tar", "--directory=/tmp/files_"+drupal_dbname, "-xzvf", "/tmp/files_"+drupal_dbname+".tar.gz")
+			tarCmd := exec.Command("tar", "--directory=/tmp/files_"+vars.Drupal_dbname, "-xzvf", "/tmp/files_"+vars.Drupal_dbname+".tar.gz")
 			_ = tarCmd.Run()
 			// COPY EXTRACTED FILES ==================================================
-			fmt.Println("[PANTHEON]: copying files into 'sites/default/files/' directory...")
-			copyExtractCmd := exec.Command("rsync", "-vcrP", "--stats", "/tmp/files_"+drupal_dbname+"/files_dev/", drupal_root+"/sites/default/files/")
+			fmt.Printf("[%s]: copying files into 'sites/default/files/' directory...\n", vars.Drupal_site_name)
+			copyExtractCmd := exec.Command("rsync", "-vcrP", "--stats", "/tmp/files_"+vars.Drupal_dbname+"/files_dev/", vars.Drupal_root+"/sites/default/files/")
 			_ = copyExtractCmd.Run()
-			fmt.Println("[PANTHEON]: Finished pulling down files to local environment!")
+			fmt.Printf("[%s]: Finished pulling down files to local environment!\n", vars.Drupal_site_name)
 		}
+
+		fmt.Printf("[%s] Finished pulling down files!\n\n", vars.Drupal_site_name)
 	},
 }
 
@@ -196,13 +123,13 @@ func init() {
 }
 
 // https://stackoverflow.com/questions/10510691/how-to-check-whether-a-file-or-directory-exists
-func exists(path string) (bool, error) {
-	_, err := os.Stat(path)
-	if err == nil {
-		return true, nil
-	}
-	if os.IsNotExist(err) {
-		return false, nil
-	}
-	return false, err
-}
+// func exists(path string) (bool, error) {
+// 	_, err := os.Stat(path)
+// 	if err == nil {
+// 		return true, nil
+// 	}
+// 	if os.IsNotExist(err) {
+// 		return false, nil
+// 	}
+// 	return false, err
+// }
