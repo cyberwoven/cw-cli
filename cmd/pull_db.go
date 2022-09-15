@@ -38,7 +38,8 @@ var pullDbCmd = &cobra.Command{
 			var client *simplessh.Client
 			var err error
 
-			if client, err = simplessh.ConnectWithKeyFile(SSH_TEST_SERVER, SSH_USER, ""); err != nil {
+			// if client, err = simplessh.ConnectWithKeyFile(SSH_TEST_SERVER, SSH_USER, ""); err != nil {
+			if client, err = simplessh.ConnectWithAgent(SSH_TEST_SERVER, SSH_USER); err != nil {
 				fmt.Println(string(err.Error()))
 				os.Exit(1)
 			}
