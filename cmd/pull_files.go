@@ -14,6 +14,7 @@ import (
 	cwutils "cw-cli/utils"
 
 	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
 // pullFilesCmd represents the pullFiles command
@@ -22,11 +23,15 @@ var pullFilesCmd = &cobra.Command{
 	Short: "Pull files from test to sandbox",
 	Run: func(cmd *cobra.Command, args []string) {
 		var vars = cwutils.GetProjectVars()
+		cwutils.InitViperConfigEnv(vars.Project_root)
+		var sshUsername string = viper.GetString("CWCLI_SSH_USER")
+		var sshServerUrl string = viper.GetString("CWCLI_SSH_TEST_SERVER")
+		var rsyncRemote string = fmt.Sprintf("%s@%s:%s/files", sshUsername, sshServerUrl, vars.DEFAULT_DIR_FOREST)
 
 		if !vars.Is_pantheon {
 			rsyncCmd := exec.Command("rsync",
 				"-vcrtzP",
-				"forest-web:"+vars.DEFAULT_DIR_FOREST+"/files",
+				rsyncRemote,
 				vars.DEFAULT_DIR_LOCAL,
 				"--stats",
 				// "--dry-run",

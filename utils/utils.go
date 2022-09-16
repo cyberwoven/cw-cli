@@ -123,7 +123,7 @@ func Exists(path string) (bool, error) {
 	return false, err
 }
 
-func InitEnv(projectRoot string) {
+func InitViperConfigEnv(projectRoot string) {
 	viper.SetEnvPrefix("CWCWLI")
 	viper.AutomaticEnv()
 	viper.SetConfigName("default")

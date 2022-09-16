@@ -28,7 +28,7 @@ var pullDbCmd = &cobra.Command{
 		var tempFilePath string = fmt.Sprintf("/tmp/db_%s.sql.gz", vars.Drupal_dbname)
 		var createBackupString string = fmt.Sprintf("mysqldump %s | gzip", vars.Drupal_dbname)
 		var gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, vars.Drupal_dbname)
-		cwutils.InitEnv(vars.Project_root)
+		cwutils.InitViperConfigEnv(vars.Project_root)
 		var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
 		var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
 
