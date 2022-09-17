@@ -33,7 +33,7 @@ var pullDbCmd = &cobra.Command{
 		var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
 
 		if !vars.Is_pantheon {
-			fmt.Printf("[%s] Pulling down database, this could take awhile...\n", vars.Drupal_site_name)
+			fmt.Printf("[%s] Pulling down database [%s], this could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 
 			var client *simplessh.Client
 			var err error
@@ -132,10 +132,10 @@ var pullDbCmd = &cobra.Command{
 			}
 		}
 
-		fmt.Printf("[%s] Cleaning up temp files...", vars.Drupal_site_name)
+		fmt.Printf("[%s] Cleaning up temp files...\n", vars.Drupal_site_name)
 		err := os.Remove(tempFilePath)
 		if err != nil {
-			fmt.Printf("[%s] Something went wrong when cleaning up temp files.", vars.Drupal_site_name)
+			fmt.Printf("[%s] Something went wrong when cleaning up temp files.\n", vars.Drupal_site_name)
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}
