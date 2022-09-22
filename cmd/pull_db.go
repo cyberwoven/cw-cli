@@ -28,7 +28,8 @@ var pullDbCmd = &cobra.Command{
 		var tempFilePath string = fmt.Sprintf("/tmp/db_%s.sql.gz", vars.Drupal_dbname)
 		var createBackupString string = fmt.Sprintf("mysqldump %s | gzip", vars.Drupal_dbname)
 		var gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, vars.Drupal_dbname)
-		cwutils.InitViperConfigEnv(vars.Project_root)
+		cwutils.InitViperConfigEnv()
+		cwutils.CheckLocalConfigOverrides(vars.Project_root)
 		var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
 		var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
 
@@ -131,10 +132,10 @@ var pullDbCmd = &cobra.Command{
 			}
 		}
 
-		fmt.Printf("[%s] Cleaning up temp files...", vars.Drupal_site_name)
+		fmt.Printf("[%s] Cleaning up temp files...\n", vars.Drupal_site_name)
 		err := os.Remove(tempFilePath)
 		if err != nil {
-			fmt.Printf("[%s] Something went wrong when cleaning up temp files.", vars.Drupal_site_name)
+			fmt.Printf("[%s] Something went wrong when cleaning up temp files.\n", vars.Drupal_site_name)
 			fmt.Println(err.Error())
 			os.Exit(1)
 		}

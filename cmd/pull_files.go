@@ -23,7 +23,8 @@ var pullFilesCmd = &cobra.Command{
 	Short: "Pull files from test to sandbox",
 	Run: func(cmd *cobra.Command, args []string) {
 		var vars = cwutils.GetProjectVars()
-		cwutils.InitViperConfigEnv(vars.Project_root)
+		cwutils.InitViperConfigEnv()
+		cwutils.CheckLocalConfigOverrides(vars.Project_root)
 		var sshUsername string = viper.GetString("CWCLI_SSH_USER")
 		var sshServerUrl string = viper.GetString("CWCLI_SSH_TEST_SERVER")
 		var rsyncRemote string = fmt.Sprintf("%s@%s:%s/files", sshUsername, sshServerUrl, vars.DEFAULT_DIR_FOREST)

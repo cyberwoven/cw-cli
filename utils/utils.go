@@ -123,12 +123,18 @@ func Exists(path string) (bool, error) {
 	return false, err
 }
 
-func InitViperConfigEnv(projectRoot string) {
+func InitViperConfigEnv() {
+	USER_HOME_DIR, err := os.UserHomeDir()
+	if err != nil {
+		fmt.Println(string(err.Error()))
+		os.Exit(1)
+	}
+
 	viper.SetEnvPrefix("CWCWLI")
 	viper.AutomaticEnv()
 	viper.SetConfigName("default")
 	viper.SetConfigType("env")
-	viper.AddConfigPath("$HOME/.cw")
+	viper.AddConfigPath(fmt.Sprintf("%s/.cw", USER_HOME_DIR))
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			fmt.Println("Config file not found in ~/.cw")
@@ -141,14 +147,22 @@ func InitViperConfigEnv(projectRoot string) {
 		}
 	}
 
-	viper.SetConfigName("config")
-	viper.AddConfigPath(projectRoot + "/.cw")
-	if err := viper.MergeInConfig(); err != nil {
-		fmt.Println(err.Error())
-	}
-
 	// fmt.Println("config found, starting app")
 	// fmt.Printf("CWCLI_SSH_USER: %s\n", viper.Get("CWCLI_SSH_USER"))
 	// fmt.Printf("CWCLI_SSH_TEST_SERVER: %s\n", viper.Get("CWCLI_SSH_TEST_SERVER"))
 	// viper.MergeInConfig()
+}
+
+func CheckLocalConfigOverrides(projectRoot string) {
+	viper.SetConfigName("config")
+	viper.AddConfigPath(projectRoot + "/.cw")
+	if err := viper.MergeInConfig(); err != nil {
+		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
+			fmt.Println("Local Config file not found in project root, using default cw-cli config.")
+			// fmt.Println(err.Error())
+		} else {
+			fmt.Println("Local Config file was found but another error was produced.")
+			fmt.Println(err.Error())
+		}
+	}
 }
