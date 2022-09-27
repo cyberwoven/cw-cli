@@ -10,6 +10,7 @@ import (
 	cwutils "cw-cli/utils"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -28,9 +29,20 @@ var pullDbCmd = &cobra.Command{
 		var tempFilePath string = fmt.Sprintf("/tmp/db_%s.sql.gz", vars.Drupal_dbname)
 		var createBackupString string = fmt.Sprintf("mysqldump %s | gzip", vars.Drupal_dbname)
 		var gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, vars.Drupal_dbname)
-		cwutils.InitViperConfigEnv(vars.Project_root)
+		cwutils.InitViperConfigEnv()
+		cwutils.CheckLocalConfigOverrides(vars.Project_root)
 		var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
 		var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
+		SSH_AGENT_PID, HAS_AGENT_PID := os.LookupEnv("SSH_AGENT_PID")
+
+		// if HAS_AGENT_PID {
+		// 	fmt.Println("YES PID")
+		// 	fmt.Println("'" + SSH_AGENT_PID + "'")
+		// } else {
+		// 	fmt.Println("NO PID")
+		// 	fmt.Println("'" + SSH_AGENT_PID + "'")
+		// }
+		// os.Exit(420)
 
 		if !vars.Is_pantheon {
 			fmt.Printf("[%s] Pulling down database [%s], this could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
@@ -38,32 +50,38 @@ var pullDbCmd = &cobra.Command{
 			var client *simplessh.Client
 			var err error
 
-			// if client, err = simplessh.ConnectWithKeyFile(SSH_TEST_SERVER, SSH_USER, ""); err != nil {
-			if client, err = simplessh.ConnectWithAgent(SSH_TEST_SERVER, SSH_USER); err != nil {
-				fmt.Println(string(err.Error()))
-				os.Exit(1)
+			if HAS_AGENT_PID {
+				// fmt.Println("YES PID")
+				fmt.Printf("SSH AGENT PID: %s\n", SSH_AGENT_PID)
+				if client, err = simplessh.ConnectWithAgent(SSH_TEST_SERVER, SSH_USER); err != nil {
+					log.Fatal(err)
+				}
+			} else {
+				// fmt.Println("NO PID")
+				// fmt.Println("'" + SSH_AGENT_PID + "'")
+				if client, err = simplessh.ConnectWithKeyFile(SSH_TEST_SERVER, SSH_USER, ""); err != nil {
+					log.Fatal(err)
+				}
 			}
 
 			defer client.Close()
 
 			res, err := client.Exec(createBackupString)
 			if err != nil {
-				fmt.Println(string(err.Error()))
-				os.Exit(1)
+				log.Fatal(err)
 			}
 
 			localFile, err := os.Create(tempFilePath)
 			if err != nil {
-				fmt.Println(string(err.Error()))
-				os.Exit(1)
+				log.Fatal(err)
 			}
 
 			defer localFile.Close()
 
 			_, err = io.Copy(localFile, bytes.NewReader(res))
 			if err != nil {
-				fmt.Printf("[%s] Something went wrong when copying temp db gzip.", vars.Drupal_site_name)
-				os.Exit(1)
+				fmt.Printf("[%s] Something went wrong when copying temp db gzip.\n", vars.Drupal_site_name)
+				log.Fatal(err)
 			}
 
 			_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
@@ -74,9 +92,8 @@ var pullDbCmd = &cobra.Command{
 				fmt.Printf("[%s] Restoring database \"%s\". This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
 				if err != nil {
-					fmt.Printf("[%s] Something went wrong when restoring database.", vars.Drupal_site_name)
-					fmt.Println(err.Error())
-					os.Exit(1)
+					fmt.Printf("[%s] Something went wrong when restoring database.\n", vars.Drupal_site_name)
+					log.Fatal(err)
 				}
 			}
 		} else {
@@ -126,8 +143,7 @@ var pullDbCmd = &cobra.Command{
 				_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
 				if err != nil {
 					fmt.Printf("[%s] Something went wrong when restoring database.\n", vars.Drupal_site_name)
-					fmt.Println(err.Error())
-					os.Exit(1)
+					log.Fatal(err)
 				}
 			}
 		}
@@ -136,8 +152,7 @@ var pullDbCmd = &cobra.Command{
 		err := os.Remove(tempFilePath)
 		if err != nil {
 			fmt.Printf("[%s] Something went wrong when cleaning up temp files.\n", vars.Drupal_site_name)
-			fmt.Println(err.Error())
-			os.Exit(1)
+			log.Fatal(err)
 		}
 		fmt.Printf("[%s] Finished pulling down database!\n\n", vars.Drupal_site_name)
 	},
