@@ -33,8 +33,8 @@ func GetProjectVars() CwVars {
 	filesCmd := exec.Command("drush", "status", "--fields=db-name,root,drupal-version", "--format=list")
 	filesCmdOutput, err := filesCmd.Output()
 	if err != nil {
-		log.Fatal(err)
 		fmt.Println("drush error")
+		log.Fatal(err)
 	}
 
 	is_pantheon := false
@@ -48,32 +48,24 @@ func GetProjectVars() CwVars {
 
 	forestCmd, err := exec.Command("/usr/bin/git", "-C", drupal_root, "config", "--get", "remote.origin.url").Output()
 	if err != nil {
-		log.Fatal(err)
 		fmt.Println("[error] get forest domain failed")
+		log.Fatal(err)
 	}
+
 	domain_forest := strings.TrimSpace(string(forestCmd))
 	domain_forest = path.Base(domain_forest)
 	domain_forest = strings.Replace(domain_forest, ".git", "", 1)
 
 	branchCmd, err := exec.Command("/usr/bin/git", "-C", drupal_root, "rev-parse", "--abbrev-ref", "HEAD").Output()
 	if err != nil {
-		log.Fatal(err)
 		fmt.Println("[error] get branch name failed")
+		log.Fatal(err)
 	}
+
 	branch_name := strings.TrimSpace(string(branchCmd))
 	branch_name = strings.ReplaceAll(branch_name, ".", "-")
 	branch_name = strings.ReplaceAll(branch_name, "/", "-")
 	branch_name = strings.ReplaceAll(branch_name, "_", "-")
-
-	// brewCmd, err := exec.Command("brew", "--prefix").Output()
-	// if err != nil {
-	// 	log.Fatal(err)
-	// 	fmt.Println("[error] get branch name failed")
-	// }
-	// brew := strings.TrimSpace(string(brewCmd))
-
-	// DEFAULT_DIR_LOCAL := brew + `/var/www/vhosts/` + domain_local + `var`
-	// DEFAULT_DIR_FOREST := `/var/www/vhosts/` + `/$BRANCH/pub/sites/default`
 	DEFAULT_DIR_LOCAL := fmt.Sprintf("%s/pub/sites/default", project_root)
 	DEFAULT_DIR_FOREST := fmt.Sprintf("/var/www/vhosts/%s/%s/pub/sites/default", domain_forest, branch_name)
 
@@ -126,8 +118,7 @@ func Exists(path string) (bool, error) {
 func InitViperConfigEnv() {
 	USER_HOME_DIR, err := os.UserHomeDir()
 	if err != nil {
-		fmt.Println(string(err.Error()))
-		os.Exit(1)
+		log.Fatal(err)
 	}
 
 	viper.SetEnvPrefix("CWCWLI")
@@ -138,19 +129,12 @@ func InitViperConfigEnv() {
 	if err := viper.ReadInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
 			fmt.Println("Config file not found in ~/.cw")
-			fmt.Println(err.Error())
-			os.Exit(1)
+			log.Fatal(err)
 		} else {
 			fmt.Println("Config file was found but another error was produced")
-			fmt.Println(err.Error())
-			os.Exit(1)
+			log.Fatal(err)
 		}
 	}
-
-	// fmt.Println("config found, starting app")
-	// fmt.Printf("CWCLI_SSH_USER: %s\n", viper.Get("CWCLI_SSH_USER"))
-	// fmt.Printf("CWCLI_SSH_TEST_SERVER: %s\n", viper.Get("CWCLI_SSH_TEST_SERVER"))
-	// viper.MergeInConfig()
 }
 
 func CheckLocalConfigOverrides(projectRoot string) {
@@ -158,11 +142,10 @@ func CheckLocalConfigOverrides(projectRoot string) {
 	viper.AddConfigPath(projectRoot + "/.cw")
 	if err := viper.MergeInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			fmt.Println("Local Config file not found in project root, using default cw-cli config.")
-			// fmt.Println(err.Error())
+			fmt.Println("Local Config file not found in project root, using default cw-cli config...")
 		} else {
-			fmt.Println("Local Config file was found but another error was produced.")
-			fmt.Println(err.Error())
+			fmt.Println("Local Config file was found but another error was produced...")
+			log.Fatal(err)
 		}
 	}
 }
