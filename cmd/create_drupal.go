@@ -18,6 +18,10 @@ var drupalCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("drupal called!")
 		// 1. clone drupal-starter repo
+		for i, s := range args {
+			fmt.Println(i, s)
+		}
+		// git clone git@bitbucket.org:cyberwoven/drupal-project-starter
 	},
 }
 

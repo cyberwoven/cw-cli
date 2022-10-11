@@ -13,6 +13,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"strconv"
 	"strings"
 
 	"github.com/sfreiberg/simplessh"
@@ -33,32 +34,23 @@ var pullDbCmd = &cobra.Command{
 		cwutils.CheckLocalConfigOverrides(vars.Project_root)
 		var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
 		var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
-		SSH_AGENT_PID, HAS_AGENT_PID := os.LookupEnv("SSH_AGENT_PID")
-
-		// if HAS_AGENT_PID {
-		// 	fmt.Println("YES PID")
-		// 	fmt.Println("'" + SSH_AGENT_PID + "'")
-		// } else {
-		// 	fmt.Println("NO PID")
-		// 	fmt.Println("'" + SSH_AGENT_PID + "'")
-		// }
-		// os.Exit(420)
+		_, HAS_AGENT_PID := os.LookupEnv("SSH_AGENT_PID")
+		var dv string = vars.Drupal_version[0:1]
+		drupal_version, _ := strconv.Atoi(dv)
 
 		if !vars.Is_pantheon {
-			fmt.Printf("[%s] Pulling down database [%s], this could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+			fmt.Printf("[%s] Pulling down database '%s', this could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 
 			var client *simplessh.Client
 			var err error
 
 			if HAS_AGENT_PID {
 				// fmt.Println("YES PID")
-				fmt.Printf("SSH AGENT PID: %s\n", SSH_AGENT_PID)
 				if client, err = simplessh.ConnectWithAgent(SSH_TEST_SERVER, SSH_USER); err != nil {
 					log.Fatal(err)
 				}
 			} else {
 				// fmt.Println("NO PID")
-				// fmt.Println("'" + SSH_AGENT_PID + "'")
 				if client, err = simplessh.ConnectWithKeyFile(SSH_TEST_SERVER, SSH_USER, ""); err != nil {
 					log.Fatal(err)
 				}
@@ -154,6 +146,16 @@ var pullDbCmd = &cobra.Command{
 			fmt.Printf("[%s] Something went wrong when cleaning up temp files.\n", vars.Drupal_site_name)
 			log.Fatal(err)
 		}
+
+		fmt.Printf("[%s] Clearing drupal cache...\n", vars.Drupal_site_name)
+		if drupal_version != 7 {
+			drushCmd := exec.Command("drush", "cr")
+			_ = drushCmd.Run()
+		} else {
+			drushCmd := exec.Command("drush", "cc", "all")
+			_ = drushCmd.Run()
+		}
+
 		fmt.Printf("[%s] Finished pulling down database!\n\n", vars.Drupal_site_name)
 	},
 }
