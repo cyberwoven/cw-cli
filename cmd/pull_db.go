@@ -26,6 +26,9 @@ var pullDbCmd = &cobra.Command{
 	Use:   "db",
 	Short: "Pull database from test down to sandbox",
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
+			log.Fatal(err)
+		}
 		var vars cwutils.CwVars = cwutils.GetProjectVars()
 		var tempFilePath string = fmt.Sprintf("/tmp/db_%s.sql.gz", vars.Drupal_dbname)
 		var createBackupString string = fmt.Sprintf("mysqldump %s | gzip", vars.Drupal_dbname)
@@ -76,12 +79,13 @@ var pullDbCmd = &cobra.Command{
 				log.Fatal(err)
 			}
 
+			fmt.Printf("[%s] Restoring database '%s'. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 			_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
 			if err != nil {
-				fmt.Printf("[%s] Database \"%s\" does not exist. Creating...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+				fmt.Printf("[%s] Database '%s' does not exist. Creating...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				_ = exec.Command("bash", "-c", fmt.Sprintf("mysqladmin create %s", vars.Drupal_dbname)).Run()
 
-				fmt.Printf("[%s] Restoring database \"%s\". This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+				fmt.Printf("[%s] Attempting to restore database '%s' again. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
 				if err != nil {
 					fmt.Printf("[%s] Something went wrong when restoring database.\n", vars.Drupal_site_name)
@@ -91,7 +95,7 @@ var pullDbCmd = &cobra.Command{
 		} else {
 
 			// CREATE BACKUP =========================================================
-			fmt.Printf("[%s] creating database backup for \"%s\". This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+			fmt.Printf("[%s] creating database backup for '%s'. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+".dev", "--element=db")
 			backupCreateStdout, _ := terminusBackupCreateCmd.StdoutPipe()
 			backupCreateStderr, _ := terminusBackupCreateCmd.StderrPipe()
@@ -124,14 +128,14 @@ var pullDbCmd = &cobra.Command{
 			_ = wgetCmd.Wait()
 
 			// EXTRACT BACKUP ========================================================
-			fmt.Printf("[%s] extracting database backup...\n", vars.Drupal_site_name)
+			fmt.Printf("[%s] Restoring database '%s'. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 
 			_, err := exec.Command("bash", "-c", gunzipCmdString).Output()
 			if err != nil {
-				fmt.Printf("[%s] Database \"%s\" does not exist. Creating...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+				fmt.Printf("[%s] Database '%s' does not exist. Creating...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				_ = exec.Command("bash", "-c", fmt.Sprintf("mysqladmin create %s", vars.Drupal_dbname)).Run()
 
-				fmt.Printf("[%s] Restoring database \"%s\". This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+				fmt.Printf("[%s] Attempting to restore database '%s' again. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
 				if err != nil {
 					fmt.Printf("[%s] Something went wrong when restoring database.\n", vars.Drupal_site_name)
@@ -140,7 +144,9 @@ var pullDbCmd = &cobra.Command{
 			}
 		}
 
-		fmt.Printf("[%s] Cleaning up temp files...\n", vars.Drupal_site_name)
+		if viper.GetBool("verbose") {
+			fmt.Printf("[%s] Cleaning up temp files...\n", vars.Drupal_site_name)
+		}
 		err := os.Remove(tempFilePath)
 		if err != nil {
 			fmt.Printf("[%s] Something went wrong when cleaning up temp files.\n", vars.Drupal_site_name)

@@ -8,6 +8,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"log"
 	"os/exec"
 	"strings"
 
@@ -22,6 +23,9 @@ var pullFilesCmd = &cobra.Command{
 	Use:   "files",
 	Short: "Pull files from test to sandbox",
 	Run: func(cmd *cobra.Command, args []string) {
+		if err := viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
+			log.Fatal(err)
+		}
 		var vars = cwutils.GetProjectVars()
 		cwutils.InitViperConfigEnv()
 		cwutils.CheckLocalConfigOverrides(vars.Project_root)
@@ -98,19 +102,22 @@ var pullFilesCmd = &cobra.Command{
 			_ = wgetCmd.Wait()
 
 			// EXTRACT BACKUP ========================================================
-			fmt.Printf("[%s]: extracting files tarball...\n", vars.Drupal_site_name)
+			if viper.GetBool("verbose") {
+				fmt.Printf("[%s]: extracting files tarball...\n", vars.Drupal_site_name)
+			}
 			mkdirCmd := exec.Command("mkdir", "/tmp/files_"+vars.Drupal_dbname)
 			_ = mkdirCmd.Run()
 			tarCmd := exec.Command("tar", "--directory=/tmp/files_"+vars.Drupal_dbname, "-xzvf", "/tmp/files_"+vars.Drupal_dbname+".tar.gz")
 			_ = tarCmd.Run()
 			// COPY EXTRACTED FILES ==================================================
-			fmt.Printf("[%s]: copying files into 'sites/default/files/' directory...\n", vars.Drupal_site_name)
+			if viper.GetBool("verbose") {
+				fmt.Printf("[%s]: copying files into 'sites/default/files/' directory...\n", vars.Drupal_site_name)
+			}
 			copyExtractCmd := exec.Command("rsync", "-vcrP", "--stats", "/tmp/files_"+vars.Drupal_dbname+"/files_dev/", vars.Drupal_root+"/sites/default/files/")
 			_ = copyExtractCmd.Run()
-			fmt.Printf("[%s]: Finished pulling down files to local environment!\n", vars.Drupal_site_name)
 		}
 
-		fmt.Printf("[%s] Finished pulling down files!\n\n", vars.Drupal_site_name)
+		fmt.Printf("[%s]: Finished pulling down files to local environment!\n\n", vars.Drupal_site_name)
 	},
 }
 
