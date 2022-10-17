@@ -154,7 +154,9 @@ func CheckLocalConfigOverrides(projectRoot string) {
 	viper.AddConfigPath(projectRoot + "/.cw")
 	if err := viper.MergeInConfig(); err != nil {
 		if _, ok := err.(viper.ConfigFileNotFoundError); ok {
-			fmt.Println("Local Config file not found in project root, using default cw-cli config...")
+			if viper.GetBool("verbose") {
+				fmt.Println("Local Config file not found in project root, using default cw-cli config...")
+			}
 		} else {
 			fmt.Println("Local Config file was found but another error was produced...")
 			log.Fatal(err)
