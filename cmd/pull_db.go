@@ -94,9 +94,14 @@ var pullDbCmd = &cobra.Command{
 			}
 		} else {
 
+			pantheonEnv := "dev"
+			if vars.Branch_name != "master" {
+				pantheonEnv = vars.Branch_name
+			}
+
 			// CREATE BACKUP =========================================================
 			fmt.Printf("[%s] creating database backup for '%s'. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
-			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+".dev", "--element=db")
+			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+"."+pantheonEnv, "--element=db")
 			backupCreateStdout, _ := terminusBackupCreateCmd.StdoutPipe()
 			backupCreateStderr, _ := terminusBackupCreateCmd.StderrPipe()
 			// fmt.Println("[Running Command]: " + terminusBackupCreateCmd.String())
@@ -111,7 +116,7 @@ var pullDbCmd = &cobra.Command{
 
 			// GET BACKUP ============================================================
 			fmt.Printf("[%s] downloading database backup...\n", vars.Drupal_site_name)
-			terminusBackupGetCmd := exec.Command("terminus", "backup:get", vars.Drupal_site_name+".dev", "--element=db")
+			terminusBackupGetCmd := exec.Command("terminus", "backup:get", vars.Drupal_site_name+"."+pantheonEnv, "--element=db")
 			backupGetStdout, _ := terminusBackupGetCmd.Output()
 
 			wgetCmd := exec.Command("wget", "--quiet", "--show-progress", strings.TrimSpace(string(backupGetStdout)), "-O", tempFilePath)
