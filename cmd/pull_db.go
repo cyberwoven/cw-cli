@@ -38,6 +38,11 @@ var pullDbCmd = &cobra.Command{
 		var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
 		var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
 		_, HAS_AGENT_PID := os.LookupEnv("SSH_AGENT_PID")
+
+		if len(vars.Drupal_version) == 0 {
+			log.Fatal("Drupal_version is empty!")
+		}
+
 		var dv string = vars.Drupal_version[0:1]
 		drupal_version, _ := strconv.Atoi(dv)
 
