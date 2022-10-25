@@ -6,7 +6,6 @@ package cmd
 
 import (
 	"bufio"
-	"bytes"
 	cwutils "cw-cli/utils"
 	"fmt"
 	"io"
@@ -15,8 +14,8 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"time"
 
-	"github.com/sfreiberg/simplessh"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
@@ -31,13 +30,11 @@ var pullDbCmd = &cobra.Command{
 		}
 		var vars cwutils.CwVars = cwutils.GetProjectVars()
 		var tempFilePath string = fmt.Sprintf("/tmp/db_%s.sql.gz", vars.Drupal_dbname)
-		var createBackupString string = fmt.Sprintf("mysqldump %s | gzip", vars.Drupal_dbname)
 		var gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, vars.Drupal_dbname)
 		cwutils.InitViperConfigEnv()
 		cwutils.CheckLocalConfigOverrides(vars.Project_root)
 		var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
 		var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
-		_, HAS_AGENT_PID := os.LookupEnv("SSH_AGENT_PID")
 
 		if len(vars.Drupal_version) == 0 {
 			log.Fatal("Drupal_version is empty!")
@@ -47,42 +44,21 @@ var pullDbCmd = &cobra.Command{
 		drupal_version, _ := strconv.Atoi(dv)
 
 		if !vars.Is_pantheon {
-			fmt.Printf("[%s] Pulling down database '%s', this could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
-
-			var client *simplessh.Client
 			var err error
 
-			if HAS_AGENT_PID {
-				// fmt.Println("YES PID")
-				if client, err = simplessh.ConnectWithAgent(SSH_TEST_SERVER, SSH_USER); err != nil {
-					log.Fatal(err)
-				}
-			} else {
-				// fmt.Println("NO PID")
-				if client, err = simplessh.ConnectWithKeyFile(SSH_TEST_SERVER, SSH_USER, ""); err != nil {
-					log.Fatal(err)
-				}
-			}
+			remoteDatabaseDumpFilename := vars.Drupal_dbname + "-" + strconv.FormatInt(time.Now().UnixMilli(), 10)
+			remoteMysqlDumpCmd := fmt.Sprintf("mysqldump %s |gzip> /tmp/database_dumps/%s.sql.gz", vars.Drupal_dbname, remoteDatabaseDumpFilename)
 
-			defer client.Close()
+			fmt.Printf("[%s] Dumping remote database '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+			sshCmd := exec.Command("ssh", SSH_USER+"@"+SSH_TEST_SERVER, remoteMysqlDumpCmd)
+			sshCmd.Start()
+			sshCmd.Wait()
 
-			res, err := client.Exec(createBackupString)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			localFile, err := os.Create(tempFilePath)
-			if err != nil {
-				log.Fatal(err)
-			}
-
-			defer localFile.Close()
-
-			_, err = io.Copy(localFile, bytes.NewReader(res))
-			if err != nil {
-				fmt.Printf("[%s] Something went wrong when copying temp db gzip.\n", vars.Drupal_site_name)
-				log.Fatal(err)
-			}
+			fmt.Printf("[%s] Downloading remote database '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+			scpSrc := fmt.Sprintf("%s@%s:/tmp/database_dumps/%s.sql.gz", SSH_USER, SSH_TEST_SERVER, remoteDatabaseDumpFilename)
+			scpCmd := exec.Command("scp", scpSrc, tempFilePath)
+			scpCmd.Start()
+			scpCmd.Wait()
 
 			fmt.Printf("[%s] Restoring database '%s'. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 			_, err = exec.Command("bash", "-c", gunzipCmdString).Output()

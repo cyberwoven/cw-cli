@@ -18,7 +18,8 @@ var statusCmd = &cobra.Command{
 	Short: "Pretty print the relevant vars of the current site",
 	Run: func(cmd *cobra.Command, args []string) {
 
-		cwVarsJson, err := json.MarshalIndent(cwutils.GetProjectVars(), "", "  ")
+		cwVars := cwutils.GetProjectVars()
+		cwVarsJson, err := json.MarshalIndent(cwVars, "", "  ")
 		if err != nil {
 			log.Fatalf(err.Error())
 		}
