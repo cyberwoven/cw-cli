@@ -14,7 +14,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:     "cw",
 	Short:   "Cyberwoven local web site development tool",
-	Version: "1.0.2",
+	Version: "1.1.0",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
@@ -34,6 +34,8 @@ func init() {
 	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.cw-cli.yaml)")
 
 	rootCmd.PersistentFlags().BoolP("verbose", "V", false, "Enables verbose logging for developer curiosity.")
+	rootCmd.PersistentFlags().BoolP("force", "f", false, "Force stuff to happen.")
+	rootCmd.PersistentFlags().BoolP("fast", "F", false, "Use experimental fast versions of commands, where available.")
 
 	// Cobra also supports local flags, which will only run
 	// when this action is called directly.

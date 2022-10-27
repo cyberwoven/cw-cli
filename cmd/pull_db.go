@@ -12,6 +12,8 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"path"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -27,6 +29,15 @@ var pullDbCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		if err := viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
 			log.Fatal(err)
+		}
+
+		if err := viper.BindPFlag("fast", rootCmd.PersistentFlags().Lookup("fast")); err != nil {
+			log.Fatal(err)
+		}
+
+		if err := viper.BindPFlag("force", rootCmd.PersistentFlags().Lookup("force")); err != nil {
+			log.Fatal(err)
+
 		}
 		var vars cwutils.CwVars = cwutils.GetProjectVars()
 		var tempFilePath string = fmt.Sprintf("/tmp/db_%s.sql.gz", vars.Drupal_dbname)
@@ -44,33 +55,165 @@ var pullDbCmd = &cobra.Command{
 		drupal_version, _ := strconv.Atoi(dv)
 
 		if !vars.Is_pantheon {
+
 			var err error
 
-			remoteDatabaseDumpFilename := vars.Drupal_dbname + "-" + strconv.FormatInt(time.Now().UnixMilli(), 10)
-			remoteMysqlDumpCmd := fmt.Sprintf("mysqldump %s |gzip> /tmp/database_dumps/%s.sql.gz", vars.Drupal_dbname, remoteDatabaseDumpFilename)
+			if viper.GetBool("fast") {
+				databaseDumpParentDir := viper.GetString("CWCLI_DATABASE_IMPORT_DIR")
+				if databaseDumpParentDir == "" {
+					databaseDumpParentDir = "/tmp/database_dumps"
+				}
 
-			fmt.Printf("[%s] Dumping remote database '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
-			sshCmd := exec.Command("ssh", SSH_USER+"@"+SSH_TEST_SERVER, remoteMysqlDumpCmd)
-			sshCmd.Start()
-			sshCmd.Wait()
+				databaseDumpDir := fmt.Sprintf("%s/%s", databaseDumpParentDir, vars.Drupal_dbname)
+				databaseImportDir := fmt.Sprintf("%s/%s", databaseDumpDir, "import")
 
-			fmt.Printf("[%s] Downloading remote database '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
-			scpSrc := fmt.Sprintf("%s@%s:/tmp/database_dumps/%s.sql.gz", SSH_USER, SSH_TEST_SERVER, remoteDatabaseDumpFilename)
-			scpCmd := exec.Command("scp", scpSrc, tempFilePath)
-			scpCmd.Start()
-			scpCmd.Wait()
+				err = os.MkdirAll(databaseDumpDir, os.ModePerm)
+				if err != nil {
+					fmt.Printf("UNABLE TO MKDIR [%s]: %s", databaseDumpDir, err.Error())
+					os.Exit(1)
+				}
 
-			fmt.Printf("[%s] Restoring database '%s'. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
-			_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
-			if err != nil {
-				fmt.Printf("[%s] Database '%s' does not exist. Creating...\n", vars.Drupal_site_name, vars.Drupal_dbname)
-				_ = exec.Command("bash", "-c", fmt.Sprintf("mysqladmin create %s", vars.Drupal_dbname)).Run()
+				/**
+				 * --force? then we drop the database...
+				 */
+				if viper.GetBool("force") {
+					fmt.Printf("[%s] Dropping database '%s' for a full import (FORCE)...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+					exec.Command("mysqladmin", "drop", vars.Drupal_dbname, "-f").Run()
+				}
 
-				fmt.Printf("[%s] Attempting to restore database '%s' again. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+				databaseExists := true
+				err = exec.Command("mysqladmin", "create", vars.Drupal_dbname).Run()
+				if err == nil {
+					databaseExists = false
+					fmt.Printf("[%s] Database '%s' was just created, gotta do a full import...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+				}
+
+				fmt.Printf("[%s] Dumping remote database '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+				remoteMysqlDumpCmd := fmt.Sprintf("~/bin/database-dump.sh %s", vars.Drupal_dbname)
+				exec.Command("ssh", SSH_USER+"@"+SSH_TEST_SERVER, remoteMysqlDumpCmd).Run()
+
+				fmt.Printf("[%s] Downloading remote database '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+				rsyncSrc := fmt.Sprintf("%s@%s:~/backups/transient/%s", SSH_USER, SSH_TEST_SERVER, vars.Drupal_dbname)
+				rsyncOutput, _ := exec.Command("rsync", "-vcrz", rsyncSrc, databaseDumpParentDir, "--delete").CombinedOutput()
+
+				/**
+				 * Database already exists? Let's import only the tables that have changed
+				 */
+				if databaseExists {
+					fmt.Printf("[%s] Optimizing import files...\n", vars.Drupal_site_name)
+
+					/**
+					 * ./import/ will contain symlinks to the files we actually want to import
+					 * so nuke the current ./import/ dir if it exists, then recreate it
+					 */
+					err = os.RemoveAll(databaseImportDir)
+					if err != nil {
+						log.Fatal(" UNABLE TO DELETE import dir: " + err.Error())
+					}
+
+					err = os.MkdirAll(databaseImportDir, os.ModePerm)
+					if err != nil {
+						log.Fatal(" UNABLE TO MKDIR import: " + err.Error())
+					}
+
+					/**
+					 * Create symlinks for each file that came down in the rsync
+					 */
+					scanner := bufio.NewScanner(strings.NewReader(string(rsyncOutput)))
+					for scanner.Scan() {
+						line := scanner.Text()
+
+						if _, err := os.Stat(databaseDumpParentDir + "/" + line); err == nil {
+							filename := path.Base(line)
+							if filename != "." {
+								targetFile := fmt.Sprintf("../%s", filename)
+								linkFile := fmt.Sprintf("%s/%s", databaseImportDir, filename)
+								if viper.GetBool("verbose") {
+									fmt.Printf("Create symlink: [%s => %s]\n", linkFile, targetFile)
+								}
+								err2 := os.Symlink(targetFile, linkFile)
+								if err2 != nil {
+									fmt.Printf(" %s\n", err2.Error())
+								}
+							}
+						}
+					}
+
+					/**
+					 * Also create symlinks for any SQL schemas (CREATE statements) that are needed.
+					 *
+					 * I.e., for any data file, we need to also symlink its schema, so that the table
+					 * will get re-created and rows re-inserted
+					 */
+					dataFiles, err := filepath.Glob(databaseImportDir + "/*0*.sql")
+					if err != nil {
+						log.Fatal(err.Error())
+					}
+					for _, dataFile := range dataFiles {
+						dataFilename := path.Base(dataFile)
+						dataFileParts := strings.Split(dataFilename, ".")
+						schemaFilename := strings.Join(dataFileParts[:len(dataFileParts)-2], ".") + "-schema.sql"
+
+						targetFile := fmt.Sprintf("../%s", schemaFilename)
+						linkFile := fmt.Sprintf("%s/%s", databaseImportDir, schemaFilename)
+						if viper.GetBool("verbose") {
+							fmt.Printf("Create symlink schema file: [%s => %s]\n", linkFile, targetFile)
+						}
+
+						if _, err := os.Lstat(linkFile); err == nil {
+							os.Remove(linkFile)
+						}
+
+						err := os.Symlink(targetFile, linkFile)
+						if err != nil {
+							log.Fatal(err.Error())
+						}
+					}
+
+				} else {
+					databaseImportDir = databaseDumpDir
+				}
+
+				fmt.Printf("[%s] Importing database files from %s\n", vars.Drupal_site_name, databaseImportDir)
+
+				myloaderArgs := []string{"--database", vars.Drupal_dbname, "--directory", databaseImportDir, "--overwrite-tables"}
+				myloaderOutput, err := exec.Command("myloader", myloaderArgs...).CombinedOutput()
+				//err = exec.Command("myloader", "--database", vars.Drupal_dbname, "--directory", databaseImportDir, "--overwrite-tables").Run()
+				if err != nil {
+					log.Fatal("MYLOADER ERROR: " + err.Error())
+				}
+
+				if viper.GetBool("verbose") {
+					fmt.Printf("%s", myloaderOutput)
+				}
+
+			} else {
+				remoteDatabaseDumpFilename := vars.Drupal_dbname + "-" + strconv.FormatInt(time.Now().UnixMilli(), 10)
+				remoteMysqlDumpCmd := fmt.Sprintf("mysqldump %s |gzip> /tmp/database_dumps/%s.sql.gz", vars.Drupal_dbname, remoteDatabaseDumpFilename)
+
+				fmt.Printf("[%s] Dumping remote database '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+				sshCmd := exec.Command("ssh", SSH_USER+"@"+SSH_TEST_SERVER, remoteMysqlDumpCmd)
+				sshCmd.Start()
+				sshCmd.Wait()
+
+				fmt.Printf("[%s] Downloading remote database '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+				scpSrc := fmt.Sprintf("%s@%s:/tmp/database_dumps/%s.sql.gz", SSH_USER, SSH_TEST_SERVER, remoteDatabaseDumpFilename)
+				scpCmd := exec.Command("scp", scpSrc, tempFilePath)
+				scpCmd.Start()
+				scpCmd.Wait()
+
+				fmt.Printf("[%s] Restoring database '%s'. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
 				if err != nil {
-					fmt.Printf("[%s] Something went wrong when restoring database.\n", vars.Drupal_site_name)
-					log.Fatal(err)
+					fmt.Printf("[%s] Database '%s' does not exist. Creating...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+					_ = exec.Command("bash", "-c", fmt.Sprintf("mysqladmin create %s", vars.Drupal_dbname)).Run()
+
+					fmt.Printf("[%s] Attempting to restore database '%s' again. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+					_, err = exec.Command("bash", "-c", gunzipCmdString).Output()
+					if err != nil {
+						fmt.Printf("[%s] Something went wrong when restoring database.\n", vars.Drupal_site_name)
+						log.Fatal(err)
+					}
 				}
 			}
 		} else {
@@ -133,20 +276,23 @@ var pullDbCmd = &cobra.Command{
 		if viper.GetBool("verbose") {
 			fmt.Printf("[%s] Cleaning up temp files...\n", vars.Drupal_site_name)
 		}
-		err := os.Remove(tempFilePath)
-		if err != nil {
-			fmt.Printf("[%s] Something went wrong when cleaning up temp files.\n", vars.Drupal_site_name)
-			log.Fatal(err)
+
+		if !viper.GetBool("fast") {
+			err := os.Remove(tempFilePath)
+			if err != nil {
+				fmt.Printf("[%s] Something went wrong when cleaning up temp files.\n", vars.Drupal_site_name)
+				log.Fatal(err)
+			}
 		}
 
 		fmt.Printf("[%s] Clearing drupal cache...\n", vars.Drupal_site_name)
-		if drupal_version != 7 {
-			drushCmd := exec.Command("drush", "cr")
-			_ = drushCmd.Run()
-		} else {
-			drushCmd := exec.Command("drush", "cc", "all")
-			_ = drushCmd.Run()
+
+		drushArgs := []string{"cr"}
+		if drupal_version == 7 {
+			drushArgs = []string{"cc", "all"}
 		}
+		drushCmd := exec.Command("drush", drushArgs...)
+		_ = drushCmd.Run()
 
 		fmt.Printf("[%s] Finished pulling down database!\n\n", vars.Drupal_site_name)
 	},
