@@ -57,34 +57,44 @@ var pullFilesCmd = &cobra.Command{
 
 			_ = rsyncCmd.Start()
 
-			scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
-			scanner.Split(bufio.ScanLines)
-			for scanner.Scan() {
-				m := scanner.Text()
-				fmt.Println(m)
+			if viper.GetBool("verbose") {
+				scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
+				scanner.Split(bufio.ScanLines)
+				for scanner.Scan() {
+					m := scanner.Text()
+					fmt.Println(m)
+				}
 			}
 			_ = rsyncCmd.Wait()
 
 		} else {
 
+			pantheonEnv := "dev"
+			if vars.Branch_name != "master" {
+				pantheonEnv = vars.Branch_name
+			}
+
 			// CREATE BACKUP =========================================================
-			fmt.Printf("[%s]: creating files tarball... this may take a minute...\n", vars.Drupal_site_name)
-			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+".dev", "--element=files")
+			fmt.Printf("[%s]: creating remote files archive...\n", vars.Drupal_site_name)
+			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+"."+pantheonEnv, "--element=files")
 			backupCreateStdout, _ := terminusBackupCreateCmd.StdoutPipe()
 			backupCreateStderr, _ := terminusBackupCreateCmd.StderrPipe()
 			// fmt.Println("[Running Command]: " + terminusBackupCreateCmd.String())
 			_ = terminusBackupCreateCmd.Start()
-			backupCreateScanner := bufio.NewScanner(io.MultiReader(backupCreateStdout, backupCreateStderr))
-			backupCreateScanner.Split(bufio.ScanLines)
-			for backupCreateScanner.Scan() {
-				m := backupCreateScanner.Text()
-				fmt.Println(m)
+
+			if viper.GetBool("verbose") {
+				backupCreateScanner := bufio.NewScanner(io.MultiReader(backupCreateStdout, backupCreateStderr))
+				backupCreateScanner.Split(bufio.ScanLines)
+				for backupCreateScanner.Scan() {
+					m := backupCreateScanner.Text()
+					fmt.Println(m)
+				}
 			}
 			_ = terminusBackupCreateCmd.Wait()
 
 			// GET BACKUP ============================================================
 			fmt.Printf("[%s]: downloading files tarball...\n", vars.Drupal_site_name)
-			terminusBackupGetCmd := exec.Command("terminus", "backup:get", vars.Drupal_site_name+".dev", "--element=files")
+			terminusBackupGetCmd := exec.Command("terminus", "backup:get", vars.Drupal_site_name+"."+pantheonEnv, "--element=files")
 			// fmt.Println("[Running Command]: " + terminusBackupGetCmd.String())
 			backupGetStdout, _ := terminusBackupGetCmd.Output()
 			// fmt.Println("[PANTHEON]: backup url - " + string(backupGetStdout))
@@ -93,12 +103,16 @@ var pullFilesCmd = &cobra.Command{
 			wgetStderr, _ := wgetCmd.StderrPipe()
 			// fmt.Println("[Running Command]: " + wgetCmd.String())
 			_ = wgetCmd.Start()
-			wgetScanner := bufio.NewScanner(io.MultiReader(wgetStderr, wgetStdout))
-			wgetScanner.Split(bufio.ScanLines)
-			for wgetScanner.Scan() {
-				m := wgetScanner.Text()
-				fmt.Println(m)
+
+			if viper.GetBool("verbose") {
+				wgetScanner := bufio.NewScanner(io.MultiReader(wgetStderr, wgetStdout))
+				wgetScanner.Split(bufio.ScanLines)
+				for wgetScanner.Scan() {
+					m := wgetScanner.Text()
+					fmt.Println(m)
+				}
 			}
+
 			_ = wgetCmd.Wait()
 
 			// EXTRACT BACKUP ========================================================

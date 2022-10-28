@@ -12,8 +12,6 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"path"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"time"
@@ -65,7 +63,7 @@ var pullDbCmd = &cobra.Command{
 				}
 
 				databaseDumpDir := fmt.Sprintf("%s/%s", databaseDumpParentDir, vars.Drupal_dbname)
-				databaseImportDir := fmt.Sprintf("%s/%s", databaseDumpDir, "import")
+				//databaseImportDir := fmt.Sprintf("%s/%s", databaseDumpDir, "import")
 
 				err = os.MkdirAll(databaseDumpDir, os.ModePerm)
 				if err != nil {
@@ -81,10 +79,10 @@ var pullDbCmd = &cobra.Command{
 					exec.Command("mysqladmin", "drop", vars.Drupal_dbname, "-f").Run()
 				}
 
-				databaseExists := true
+				//databaseExists := true
 				err = exec.Command("mysqladmin", "create", vars.Drupal_dbname).Run()
 				if err == nil {
-					databaseExists = false
+					//databaseExists = false
 					fmt.Printf("[%s] Database '%s' was just created, gotta do a full import...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				}
 
@@ -94,91 +92,36 @@ var pullDbCmd = &cobra.Command{
 
 				fmt.Printf("[%s] Downloading remote database '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 				rsyncSrc := fmt.Sprintf("%s@%s:~/backups/transient/%s", SSH_USER, SSH_TEST_SERVER, vars.Drupal_dbname)
-				rsyncOutput, _ := exec.Command("rsync", "-vcrz", rsyncSrc, databaseDumpParentDir, "--delete").CombinedOutput()
+				rsyncOutput, _ := exec.Command("rsync", "-avz", rsyncSrc, databaseDumpParentDir, "--delete").CombinedOutput()
 
-				/**
-				 * Database already exists? Let's import only the tables that have changed
-				 */
-				if databaseExists {
-					fmt.Printf("[%s] Optimizing import files...\n", vars.Drupal_site_name)
-
-					/**
-					 * ./import/ will contain symlinks to the files we actually want to import
-					 * so nuke the current ./import/ dir if it exists, then recreate it
-					 */
-					err = os.RemoveAll(databaseImportDir)
-					if err != nil {
-						log.Fatal(" UNABLE TO DELETE import dir: " + err.Error())
-					}
-
-					err = os.MkdirAll(databaseImportDir, os.ModePerm)
-					if err != nil {
-						log.Fatal(" UNABLE TO MKDIR import: " + err.Error())
-					}
-
-					/**
-					 * Create symlinks for each file that came down in the rsync
-					 */
-					scanner := bufio.NewScanner(strings.NewReader(string(rsyncOutput)))
-					for scanner.Scan() {
-						line := scanner.Text()
-
-						if _, err := os.Stat(databaseDumpParentDir + "/" + line); err == nil {
-							filename := path.Base(line)
-							if filename != "." {
-								targetFile := fmt.Sprintf("../%s", filename)
-								linkFile := fmt.Sprintf("%s/%s", databaseImportDir, filename)
-								if viper.GetBool("verbose") {
-									fmt.Printf("Create symlink: [%s => %s]\n", linkFile, targetFile)
-								}
-								err2 := os.Symlink(targetFile, linkFile)
-								if err2 != nil {
-									fmt.Printf(" %s\n", err2.Error())
-								}
-							}
-						}
-					}
-
-					/**
-					 * Also create symlinks for any SQL schemas (CREATE statements) that are needed.
-					 *
-					 * I.e., for any data file, we need to also symlink its schema, so that the table
-					 * will get re-created and rows re-inserted
-					 */
-					dataFiles, err := filepath.Glob(databaseImportDir + "/*0*.sql")
-					if err != nil {
-						log.Fatal(err.Error())
-					}
-					for _, dataFile := range dataFiles {
-						dataFilename := path.Base(dataFile)
-						dataFileParts := strings.Split(dataFilename, ".")
-						schemaFilename := strings.Join(dataFileParts[:len(dataFileParts)-2], ".") + "-schema.sql"
-
-						targetFile := fmt.Sprintf("../%s", schemaFilename)
-						linkFile := fmt.Sprintf("%s/%s", databaseImportDir, schemaFilename)
-						if viper.GetBool("verbose") {
-							fmt.Printf("Create symlink schema file: [%s => %s]\n", linkFile, targetFile)
-						}
-
-						if _, err := os.Lstat(linkFile); err == nil {
-							os.Remove(linkFile)
-						}
-
-						err := os.Symlink(targetFile, linkFile)
-						if err != nil {
-							log.Fatal(err.Error())
-						}
-					}
-
-				} else {
-					databaseImportDir = databaseDumpDir
+				if viper.GetBool("verbose") {
+					fmt.Printf("%s\n", rsyncOutput)
 				}
 
-				fmt.Printf("[%s] Importing database files from %s\n", vars.Drupal_site_name, databaseImportDir)
+				fmt.Printf("[%s] Dumping local session table %s\n", vars.Drupal_site_name, databaseDumpDir)
 
-				myloaderArgs := []string{"--database", vars.Drupal_dbname, "--directory", databaseImportDir, "--overwrite-tables"}
+				mydumperArgs := []string{
+					"--database", vars.Drupal_dbname,
+					"--tables-list", vars.Drupal_dbname + ".sessions",
+					"--outputdir", databaseDumpDir,
+				}
+
+				mydumperOutput, err := exec.Command("mydumper", mydumperArgs...).CombinedOutput()
+				if err != nil {
+					fmt.Printf("MYDUMPER ERROR: %s\n%s", err.Error(), mydumperOutput)
+					os.Exit(1)
+				}
+
+				fmt.Printf("[%s] Importing database files from %s\n", vars.Drupal_site_name, databaseDumpDir)
+
+				myloaderArgs := []string{
+					"--database", vars.Drupal_dbname,
+					"--directory", databaseDumpDir,
+					"--overwrite-tables",
+					"--purge-mode", "TRUNCATE",
+				}
+
 				myloaderOutput, err := exec.Command("myloader", myloaderArgs...).CombinedOutput()
-				//err = exec.Command("myloader", "--database", vars.Drupal_dbname, "--directory", databaseImportDir, "--overwrite-tables").Run()
 				if err != nil {
 					log.Fatal("MYLOADER ERROR: " + err.Error())
 				}
@@ -224,7 +167,7 @@ var pullDbCmd = &cobra.Command{
 			}
 
 			// CREATE BACKUP =========================================================
-			fmt.Printf("[%s] creating database backup for '%s'. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+			fmt.Printf("[%s] Creating remote database backup for '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+"."+pantheonEnv, "--element=db")
 			backupCreateStdout, _ := terminusBackupCreateCmd.StdoutPipe()
 			backupCreateStderr, _ := terminusBackupCreateCmd.StderrPipe()
@@ -239,7 +182,7 @@ var pullDbCmd = &cobra.Command{
 			_ = terminusBackupCreateCmd.Wait()
 
 			// GET BACKUP ============================================================
-			fmt.Printf("[%s] downloading database backup...\n", vars.Drupal_site_name)
+			fmt.Printf("[%s] Downloading remote database backup...\n", vars.Drupal_site_name)
 			terminusBackupGetCmd := exec.Command("terminus", "backup:get", vars.Drupal_site_name+"."+pantheonEnv, "--element=db")
 			backupGetStdout, _ := terminusBackupGetCmd.Output()
 
@@ -248,16 +191,20 @@ var pullDbCmd = &cobra.Command{
 			wgetStderr, _ := wgetCmd.StderrPipe()
 
 			_ = wgetCmd.Start()
-			wgetScanner := bufio.NewScanner(io.MultiReader(wgetStderr, wgetStdout))
-			wgetScanner.Split(bufio.ScanLines)
-			for wgetScanner.Scan() {
-				m := wgetScanner.Text()
-				fmt.Println(m)
+
+			if viper.GetBool("verbose") {
+				wgetScanner := bufio.NewScanner(io.MultiReader(wgetStderr, wgetStdout))
+				wgetScanner.Split(bufio.ScanLines)
+				for wgetScanner.Scan() {
+					m := wgetScanner.Text()
+					fmt.Println(m)
+				}
 			}
+
 			_ = wgetCmd.Wait()
 
 			// EXTRACT BACKUP ========================================================
-			fmt.Printf("[%s] Restoring database '%s'. This could take awhile...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+			fmt.Printf("[%s] Importing database '%s' into sandbox...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 
 			_, err := exec.Command("bash", "-c", gunzipCmdString).Output()
 			if err != nil {
