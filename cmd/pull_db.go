@@ -12,6 +12,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"strconv"
 	"strings"
 	"time"
@@ -25,6 +26,14 @@ var pullDbCmd = &cobra.Command{
 	Use:   "db",
 	Short: "Pull database from test down to sandbox",
 	Run: func(cmd *cobra.Command, args []string) {
+
+		user, err := user.Current()
+		if err != nil {
+			log.Fatalf(err.Error())
+		}
+
+		username := user.Username
+
 		if err := viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
 			log.Fatal(err)
 		}
@@ -101,6 +110,7 @@ var pullDbCmd = &cobra.Command{
 				fmt.Printf("[%s] Dumping local session table %s\n", vars.Drupal_site_name, databaseDumpDir)
 
 				mydumperArgs := []string{
+					"--user", username,
 					"--database", vars.Drupal_dbname,
 					"--tables-list", vars.Drupal_dbname + ".sessions",
 					"--outputdir", databaseDumpDir,
@@ -115,6 +125,7 @@ var pullDbCmd = &cobra.Command{
 				fmt.Printf("[%s] Importing database files from %s\n", vars.Drupal_site_name, databaseDumpDir)
 
 				myloaderArgs := []string{
+					"--user", username,
 					"--database", vars.Drupal_dbname,
 					"--directory", databaseDumpDir,
 					"--overwrite-tables",
