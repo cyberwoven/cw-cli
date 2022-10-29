@@ -23,6 +23,9 @@ var pullFilesCmd = &cobra.Command{
 	Use:   "files",
 	Short: "Pull files from test to sandbox",
 	Run: func(cmd *cobra.Command, args []string) {
+		isVerbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
+		isFast, _ := rootCmd.PersistentFlags().GetBool("fast")
+
 		if err := viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
 			log.Fatal(err)
 		}
@@ -74,61 +77,90 @@ var pullFilesCmd = &cobra.Command{
 				pantheonEnv = vars.Branch_name
 			}
 
-			// CREATE BACKUP =========================================================
-			fmt.Printf("[%s]: creating remote files archive...\n", vars.Drupal_site_name)
-			terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+"."+pantheonEnv, "--element=files")
-			backupCreateStdout, _ := terminusBackupCreateCmd.StdoutPipe()
-			backupCreateStderr, _ := terminusBackupCreateCmd.StderrPipe()
-			// fmt.Println("[Running Command]: " + terminusBackupCreateCmd.String())
-			_ = terminusBackupCreateCmd.Start()
-
-			if viper.GetBool("verbose") {
-				backupCreateScanner := bufio.NewScanner(io.MultiReader(backupCreateStdout, backupCreateStderr))
-				backupCreateScanner.Split(bufio.ScanLines)
-				for backupCreateScanner.Scan() {
-					m := backupCreateScanner.Text()
-					fmt.Println(m)
+			if isFast {
+				/**
+				 * We assume the terminus rsync plugin is installed
+				 */
+				terminusRsyncArgs := []string{
+					"rsync",
+					fmt.Sprintf("%s.%s:files", vars.Drupal_site_name, pantheonEnv),
+					vars.DEFAULT_DIR_LOCAL,
 				}
-			}
-			_ = terminusBackupCreateCmd.Wait()
 
-			// GET BACKUP ============================================================
-			fmt.Printf("[%s]: downloading files tarball...\n", vars.Drupal_site_name)
-			terminusBackupGetCmd := exec.Command("terminus", "backup:get", vars.Drupal_site_name+"."+pantheonEnv, "--element=files")
-			// fmt.Println("[Running Command]: " + terminusBackupGetCmd.String())
-			backupGetStdout, _ := terminusBackupGetCmd.Output()
-			// fmt.Println("[PANTHEON]: backup url - " + string(backupGetStdout))
-			wgetCmd := exec.Command("wget", "--quiet", "--show-progress", strings.TrimSpace(string(backupGetStdout)), "-O", "/tmp/files_"+vars.Drupal_dbname+".tar.gz")
-			wgetStdout, _ := wgetCmd.StdoutPipe()
-			wgetStderr, _ := wgetCmd.StderrPipe()
-			// fmt.Println("[Running Command]: " + wgetCmd.String())
-			_ = wgetCmd.Start()
+				rsyncCmd := exec.Command("terminus", terminusRsyncArgs...)
+				rsyncStdout, _ := rsyncCmd.StdoutPipe()
+				rsyncStderr, _ := rsyncCmd.StderrPipe()
+				_ = rsyncCmd.Start()
 
-			if viper.GetBool("verbose") {
-				wgetScanner := bufio.NewScanner(io.MultiReader(wgetStderr, wgetStdout))
-				wgetScanner.Split(bufio.ScanLines)
-				for wgetScanner.Scan() {
-					m := wgetScanner.Text()
-					fmt.Println(m)
+				if isVerbose {
+					rsyncScanner := bufio.NewScanner(io.MultiReader(rsyncStderr, rsyncStdout))
+					rsyncScanner.Split(bufio.ScanLines)
+					for rsyncScanner.Scan() {
+						m := rsyncScanner.Text()
+						fmt.Println(m)
+					}
 				}
-			}
+				_ = rsyncCmd.Wait()
 
-			_ = wgetCmd.Wait()
+			} else {
 
-			// EXTRACT BACKUP ========================================================
-			if viper.GetBool("verbose") {
-				fmt.Printf("[%s]: extracting files tarball...\n", vars.Drupal_site_name)
+				// CREATE BACKUP =========================================================
+				fmt.Printf("[%s]: creating remote files archive...\n", vars.Drupal_site_name)
+				terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+"."+pantheonEnv, "--element=files")
+				backupCreateStdout, _ := terminusBackupCreateCmd.StdoutPipe()
+				backupCreateStderr, _ := terminusBackupCreateCmd.StderrPipe()
+				// fmt.Println("[Running Command]: " + terminusBackupCreateCmd.String())
+				_ = terminusBackupCreateCmd.Start()
+
+				if viper.GetBool("verbose") {
+					backupCreateScanner := bufio.NewScanner(io.MultiReader(backupCreateStdout, backupCreateStderr))
+					backupCreateScanner.Split(bufio.ScanLines)
+					for backupCreateScanner.Scan() {
+						m := backupCreateScanner.Text()
+						fmt.Println(m)
+					}
+				}
+				_ = terminusBackupCreateCmd.Wait()
+
+				// GET BACKUP ============================================================
+				fmt.Printf("[%s]: downloading files tarball...\n", vars.Drupal_site_name)
+				terminusBackupGetCmd := exec.Command("terminus", "backup:get", vars.Drupal_site_name+"."+pantheonEnv, "--element=files")
+				// fmt.Println("[Running Command]: " + terminusBackupGetCmd.String())
+				backupGetStdout, _ := terminusBackupGetCmd.Output()
+				// fmt.Println("[PANTHEON]: backup url - " + string(backupGetStdout))
+				wgetCmd := exec.Command("wget", "--quiet", "--show-progress", strings.TrimSpace(string(backupGetStdout)), "-O", "/tmp/files_"+vars.Drupal_dbname+".tar.gz")
+				wgetStdout, _ := wgetCmd.StdoutPipe()
+				wgetStderr, _ := wgetCmd.StderrPipe()
+				// fmt.Println("[Running Command]: " + wgetCmd.String())
+				_ = wgetCmd.Start()
+
+				if viper.GetBool("verbose") {
+					wgetScanner := bufio.NewScanner(io.MultiReader(wgetStderr, wgetStdout))
+					wgetScanner.Split(bufio.ScanLines)
+					for wgetScanner.Scan() {
+						m := wgetScanner.Text()
+						fmt.Println(m)
+					}
+				}
+
+				_ = wgetCmd.Wait()
+
+				// EXTRACT BACKUP ========================================================
+				if viper.GetBool("verbose") {
+					fmt.Printf("[%s]: extracting files tarball...\n", vars.Drupal_site_name)
+				}
+				mkdirCmd := exec.Command("mkdir", "/tmp/files_"+vars.Drupal_dbname)
+				_ = mkdirCmd.Run()
+				tarCmd := exec.Command("tar", "--directory=/tmp/files_"+vars.Drupal_dbname, "-xzvf", "/tmp/files_"+vars.Drupal_dbname+".tar.gz")
+				_ = tarCmd.Run()
+				// COPY EXTRACTED FILES ==================================================
+				if viper.GetBool("verbose") {
+					fmt.Printf("[%s]: copying files into 'sites/default/files/' directory...\n", vars.Drupal_site_name)
+				}
+				copyExtractCmd := exec.Command("rsync", "-vcrP", "--stats", "/tmp/files_"+vars.Drupal_dbname+"/files_dev/", vars.Drupal_root+"/sites/default/files/")
+				_ = copyExtractCmd.Run()
+
 			}
-			mkdirCmd := exec.Command("mkdir", "/tmp/files_"+vars.Drupal_dbname)
-			_ = mkdirCmd.Run()
-			tarCmd := exec.Command("tar", "--directory=/tmp/files_"+vars.Drupal_dbname, "-xzvf", "/tmp/files_"+vars.Drupal_dbname+".tar.gz")
-			_ = tarCmd.Run()
-			// COPY EXTRACTED FILES ==================================================
-			if viper.GetBool("verbose") {
-				fmt.Printf("[%s]: copying files into 'sites/default/files/' directory...\n", vars.Drupal_site_name)
-			}
-			copyExtractCmd := exec.Command("rsync", "-vcrP", "--stats", "/tmp/files_"+vars.Drupal_dbname+"/files_dev/", vars.Drupal_root+"/sites/default/files/")
-			_ = copyExtractCmd.Run()
 		}
 
 		fmt.Printf("[%s]: Finished pulling down files to local environment!\n\n", vars.Drupal_site_name)
