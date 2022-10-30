@@ -27,6 +27,10 @@ var pullDbCmd = &cobra.Command{
 	Short: "Pull database from test down to sandbox",
 	Run: func(cmd *cobra.Command, args []string) {
 
+		isFlaggedVerbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
+		isFlaggedSlow, _ := rootCmd.PersistentFlags().GetBool("slow")
+		isFlaggedForce, _ := rootCmd.PersistentFlags().GetBool("force")
+
 		user, err := user.Current()
 		if err != nil {
 			log.Fatalf(err.Error())
@@ -34,18 +38,6 @@ var pullDbCmd = &cobra.Command{
 
 		username := user.Username
 
-		if err := viper.BindPFlag("verbose", rootCmd.PersistentFlags().Lookup("verbose")); err != nil {
-			log.Fatal(err)
-		}
-
-		if err := viper.BindPFlag("fast", rootCmd.PersistentFlags().Lookup("fast")); err != nil {
-			log.Fatal(err)
-		}
-
-		if err := viper.BindPFlag("force", rootCmd.PersistentFlags().Lookup("force")); err != nil {
-			log.Fatal(err)
-
-		}
 		var vars cwutils.CwVars = cwutils.GetProjectVars()
 		var tempFilePath string = fmt.Sprintf("/tmp/db_%s.sql.gz", vars.Drupal_dbname)
 		var gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, vars.Drupal_dbname)
@@ -61,11 +53,13 @@ var pullDbCmd = &cobra.Command{
 		var dv string = vars.Drupal_version[0:1]
 		drupal_version, _ := strconv.Atoi(dv)
 
+		fmt.Printf("[%s] Starting database pull for '%s'.\n", vars.Drupal_site_name, vars.Drupal_dbname)
+
 		if !vars.Is_pantheon {
 
 			var err error
 
-			if viper.GetBool("fast") {
+			if !isFlaggedSlow {
 				databaseDumpParentDir := viper.GetString("CWCLI_DATABASE_IMPORT_DIR")
 				if databaseDumpParentDir == "" {
 					databaseDumpParentDir = "/tmp/database_dumps"
@@ -83,7 +77,7 @@ var pullDbCmd = &cobra.Command{
 				/**
 				 * --force? then we drop the database...
 				 */
-				if viper.GetBool("force") {
+				if isFlaggedForce {
 					fmt.Printf("[%s] Dropping database '%s' for a full import (FORCE)...\n", vars.Drupal_site_name, vars.Drupal_dbname)
 					exec.Command("mysqladmin", "drop", vars.Drupal_dbname, "-f").Run()
 				}
@@ -103,7 +97,7 @@ var pullDbCmd = &cobra.Command{
 				rsyncSrc := fmt.Sprintf("%s@%s:~/backups/transient/%s", SSH_USER, SSH_TEST_SERVER, vars.Drupal_dbname)
 				rsyncOutput, _ := exec.Command("rsync", "-avz", rsyncSrc, databaseDumpParentDir, "--delete").CombinedOutput()
 
-				if viper.GetBool("verbose") {
+				if isFlaggedVerbose {
 					fmt.Printf("%s\n", rsyncOutput)
 				}
 
@@ -137,7 +131,7 @@ var pullDbCmd = &cobra.Command{
 					log.Fatal("MYLOADER ERROR: " + err.Error())
 				}
 
-				if viper.GetBool("verbose") {
+				if isFlaggedVerbose {
 					fmt.Printf("%s", myloaderOutput)
 				}
 
@@ -203,7 +197,7 @@ var pullDbCmd = &cobra.Command{
 
 			_ = wgetCmd.Start()
 
-			if viper.GetBool("verbose") {
+			if isFlaggedVerbose {
 				wgetScanner := bufio.NewScanner(io.MultiReader(wgetStderr, wgetStdout))
 				wgetScanner.Split(bufio.ScanLines)
 				for wgetScanner.Scan() {
@@ -231,11 +225,11 @@ var pullDbCmd = &cobra.Command{
 			}
 		}
 
-		if viper.GetBool("verbose") {
+		if isFlaggedVerbose {
 			fmt.Printf("[%s] Cleaning up temp files...\n", vars.Drupal_site_name)
 		}
 
-		if !viper.GetBool("fast") {
+		if isFlaggedSlow {
 			err := os.Remove(tempFilePath)
 			if err != nil {
 				fmt.Printf("[%s] Something went wrong when cleaning up temp files.\n", vars.Drupal_site_name)
@@ -252,7 +246,7 @@ var pullDbCmd = &cobra.Command{
 		drushCmd := exec.Command("drush", drushArgs...)
 		_ = drushCmd.Run()
 
-		fmt.Printf("[%s] Finished pulling down database!\n\n", vars.Drupal_site_name)
+		fmt.Printf("[%s] Database pull complete.\n\n", vars.Drupal_site_name)
 	},
 }
 
