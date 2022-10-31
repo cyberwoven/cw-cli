@@ -106,7 +106,7 @@ var pullDbCmd = &cobra.Command{
 				mydumperArgs := []string{
 					"--user", username,
 					"--database", vars.Drupal_dbname,
-					"--tables-list", vars.Drupal_dbname + ".sessions",
+					"--regex", fmt.Sprintf("%s.sessions", vars.Drupal_dbname),
 					"--outputdir", databaseDumpDir,
 				}
 
