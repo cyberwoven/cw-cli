@@ -31,6 +31,8 @@ var pullDbCmd = &cobra.Command{
 		isFlaggedSlow, _ := rootCmd.PersistentFlags().GetBool("slow")
 		isFlaggedForce, _ := rootCmd.PersistentFlags().GetBool("force")
 
+		explicitDatabaseName, _ := cmd.PersistentFlags().GetString("name")
+
 		user, err := user.Current()
 		if err != nil {
 			log.Fatalf(err.Error())
@@ -40,7 +42,14 @@ var pullDbCmd = &cobra.Command{
 
 		databaseDumpParentDir := viper.GetString("CWCLI_DATABASE_IMPORT_DIR")
 		if databaseDumpParentDir == "" {
-			databaseDumpParentDir = "/tmp/database_dumps"
+			homeDir, _ := os.UserHomeDir()
+			databaseDumpParentDir = homeDir + "/.cw/database_dumps"
+		}
+
+		err = os.MkdirAll(databaseDumpParentDir, os.ModePerm)
+		if err != nil {
+			fmt.Printf("UNABLE TO MKDIR [%s]: %s", databaseDumpParentDir, err.Error())
+			os.Exit(1)
 		}
 
 		var vars cwutils.CwVars = cwutils.GetProjectVars()
@@ -51,26 +60,33 @@ var pullDbCmd = &cobra.Command{
 		var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
 		var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
 
-		if len(vars.Drupal_version) == 0 {
-			log.Fatal("Drupal_version is empty!")
+		// if len(vars.Drupal_version) == 0 {
+		// 	log.Fatal("Drupal_version is empty!")
+		// }
+
+		databaseName := vars.Drupal_dbname
+		if explicitDatabaseName != "" {
+			databaseName = explicitDatabaseName
 		}
 
-		var dv string = vars.Drupal_version[0:1]
-		drupal_version, _ := strconv.Atoi(dv)
+		siteName := "non-drupal-site"
+		if vars.Drupal_site_name != "" {
+			siteName = vars.Drupal_site_name
+		}
 
-		fmt.Printf("[%s] Starting database pull for '%s'.\n", vars.Drupal_site_name, vars.Drupal_dbname)
+		fmt.Printf("[%s] Starting database pull for '%s'.\n", siteName, databaseName)
 
 		/**
-		* --force? then we drop the database...
+		 * --force? then we drop the database...
 		 */
 		if isFlaggedForce {
-			fmt.Printf("[%s] Dropping database '%s' for a full import (FORCE)...\n", vars.Drupal_site_name, vars.Drupal_dbname)
-			exec.Command("mysqladmin", "drop", vars.Drupal_dbname, "-f").Run()
+			fmt.Printf("[%s] Dropping database '%s' for a full import (FORCE)...\n", siteName, databaseName)
+			exec.Command("mysqladmin", "drop", databaseName, "-f").Run()
 		}
 
-		err = exec.Command("mysqladmin", "create", vars.Drupal_dbname).Run()
+		err = exec.Command("mysqladmin", "create", databaseName).Run()
 		if err == nil {
-			fmt.Printf("[%s] Database '%s' was just created, proceeding with a fresh import...\n", vars.Drupal_site_name, vars.Drupal_dbname)
+			fmt.Printf("[%s] Database '%s' was just created, proceeding with a fresh import...\n", siteName, databaseName)
 		}
 
 		if !vars.Is_pantheon {
@@ -79,7 +95,7 @@ var pullDbCmd = &cobra.Command{
 
 			if !isFlaggedSlow {
 
-				databaseDumpDir := fmt.Sprintf("%s/%s", databaseDumpParentDir, vars.Drupal_dbname)
+				databaseDumpDir := fmt.Sprintf("%s/%s", databaseDumpParentDir, databaseName)
 
 				err = os.MkdirAll(databaseDumpDir, os.ModePerm)
 				if err != nil {
@@ -87,29 +103,29 @@ var pullDbCmd = &cobra.Command{
 					os.Exit(1)
 				}
 
-				fmt.Printf("[%s] Dumping remote database '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
-				remoteMysqlDumpCmd := fmt.Sprintf("~/bin/database-dump.sh %s", vars.Drupal_dbname)
+				fmt.Printf("[%s] Dumping remote database '%s'...\n", siteName, databaseName)
+				remoteMysqlDumpCmd := fmt.Sprintf("~/bin/database-dump.sh %s", databaseName)
 				err = exec.Command("ssh", SSH_USER+"@"+SSH_TEST_SERVER, remoteMysqlDumpCmd).Run()
 
 				if err != nil {
-					fmt.Printf("[%s] ABORT: Unable to backup remote database '%s'.\n", vars.Drupal_site_name, vars.Drupal_dbname)
+					fmt.Printf("[%s] ABORT: Unable to backup remote database '%s'. SSH_USER=%s, SSH_HOST=%s\n", siteName, databaseName, SSH_USER, SSH_TEST_SERVER)
 					os.Exit(1)
 				}
 
-				fmt.Printf("[%s] Downloading remote database '%s'...\n", vars.Drupal_site_name, vars.Drupal_dbname)
-				rsyncSrc := fmt.Sprintf("%s@%s:~/backups/transient/%s", SSH_USER, SSH_TEST_SERVER, vars.Drupal_dbname)
+				fmt.Printf("[%s] Downloading remote database '%s'...\n", siteName, databaseName)
+				rsyncSrc := fmt.Sprintf("%s@%s:~/backups/transient/%s", SSH_USER, SSH_TEST_SERVER, databaseName)
 				rsyncOutput, _ := exec.Command("rsync", "-avz", rsyncSrc, databaseDumpParentDir, "--delete").CombinedOutput()
 
 				if isFlaggedVerbose {
 					fmt.Printf("%s\n", rsyncOutput)
 				}
 
-				fmt.Printf("[%s] Dumping local session table %s\n", vars.Drupal_site_name, databaseDumpDir)
+				fmt.Printf("[%s] Dumping local session table %s\n", siteName, databaseDumpDir)
 
 				mydumperArgs := []string{
 					"--user", username,
-					"--database", vars.Drupal_dbname,
-					"--regex", fmt.Sprintf("%s.sessions", vars.Drupal_dbname),
+					"--database", databaseName,
+					"--regex", fmt.Sprintf("%s.sessions", databaseName),
 					"--outputdir", databaseDumpDir,
 				}
 
@@ -119,11 +135,11 @@ var pullDbCmd = &cobra.Command{
 					os.Exit(1)
 				}
 
-				fmt.Printf("[%s] Importing database files from %s\n", vars.Drupal_site_name, databaseDumpDir)
+				fmt.Printf("[%s] Importing database files from %s\n", siteName, databaseDumpDir)
 
 				myloaderArgs := []string{
 					"--user", username,
-					"--database", vars.Drupal_dbname,
+					"--database", databaseName,
 					"--directory", databaseDumpDir,
 					"--overwrite-tables",
 					"--purge-mode", "TRUNCATE",
@@ -136,6 +152,11 @@ var pullDbCmd = &cobra.Command{
 
 				if isFlaggedVerbose {
 					fmt.Printf("%s", myloaderOutput)
+				}
+
+				// halt here, since a db name was provided. no need to clear caches, etc
+				if explicitDatabaseName != "" {
+					os.Exit(0)
 				}
 
 			} else {
@@ -230,6 +251,9 @@ var pullDbCmd = &cobra.Command{
 
 		fmt.Printf("[%s] Clearing Drupal cache...\n", vars.Drupal_site_name)
 
+		var dv string = vars.Drupal_version[0:1]
+		drupal_version, _ := strconv.Atoi(dv)
+
 		drushArgs := []string{"cr"}
 		if drupal_version == 7 {
 			drushArgs = []string{"cc", "all"}
@@ -243,6 +267,8 @@ var pullDbCmd = &cobra.Command{
 
 func init() {
 	pullCmd.AddCommand(pullDbCmd)
+
+	pullDbCmd.PersistentFlags().String("name", "", "Pull a specific database by name")
 
 	// Here you will define your flags and configuration settings.
 
