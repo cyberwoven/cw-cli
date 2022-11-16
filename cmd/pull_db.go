@@ -52,21 +52,24 @@ var pullDbCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		var vars cwutils.CwVars = cwutils.GetProjectVars()
-		var tempFilePath string = fmt.Sprintf("%s/%s.sql.gz", databaseDumpParentDir, vars.Drupal_dbname)
-		var gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, vars.Drupal_dbname)
+		var vars cwutils.CwVars
+		var tempFilePath string
+		var gunzipCmdString string
+
 		cwutils.InitViperConfigEnv()
-		cwutils.CheckLocalConfigOverrides(vars.Project_root)
+
 		var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
 		var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
 
-		// if len(vars.Drupal_version) == 0 {
-		// 	log.Fatal("Drupal_version is empty!")
-		// }
-
-		databaseName := vars.Drupal_dbname
+		databaseName := ""
 		if explicitDatabaseName != "" {
 			databaseName = explicitDatabaseName
+		} else {
+			cwutils.CheckLocalConfigOverrides(vars.Project_root)
+			vars = cwutils.GetProjectVars()
+			tempFilePath = fmt.Sprintf("%s/%s.sql.gz", databaseDumpParentDir, vars.Drupal_dbname)
+			gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, vars.Drupal_dbname)
+			databaseName = vars.Drupal_dbname
 		}
 
 		siteName := "non-drupal-site"

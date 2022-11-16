@@ -14,7 +14,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:     "cw",
 	Short:   "Cyberwoven local web site development tool",
-	Version: "1.2.3",
+	Version: "1.2.4",
 }
 
 // Execute adds all child commands to the root command and sets flags appropriately.
