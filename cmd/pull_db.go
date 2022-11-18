@@ -65,8 +65,8 @@ var pullDbCmd = &cobra.Command{
 		if explicitDatabaseName != "" {
 			databaseName = explicitDatabaseName
 		} else {
-			cwutils.CheckLocalConfigOverrides(vars.Project_root)
 			vars = cwutils.GetProjectVars()
+			cwutils.CheckLocalConfigOverrides(vars.Project_root)
 			tempFilePath = fmt.Sprintf("%s/%s.sql.gz", databaseDumpParentDir, vars.Drupal_dbname)
 			gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, vars.Drupal_dbname)
 			databaseName = vars.Drupal_dbname
