@@ -72,6 +72,11 @@ var pullDbCmd = &cobra.Command{
 			databaseName = vars.Drupal_dbname
 		}
 
+		if databaseName == "" {
+			fmt.Print("ABORT: database name is empty")
+			os.Exit(1)
+		}
+
 		siteName := "non-drupal-site"
 		if vars.Drupal_site_name != "" {
 			siteName = vars.Drupal_site_name
@@ -149,12 +154,14 @@ var pullDbCmd = &cobra.Command{
 				}
 
 				myloaderOutput, err := exec.Command("myloader", myloaderArgs...).CombinedOutput()
-				if err != nil {
-					log.Fatal("MYLOADER ERROR: " + err.Error())
-				}
-
 				if isFlaggedVerbose {
 					fmt.Printf("%s", myloaderOutput)
+				}
+
+				if err != nil {
+					fmt.Printf("MYLOADER ERROR: %s", err.Error())
+					fmt.Print("Consider using the --force flag to drop and recreate the database.")
+					os.Exit(1)
 				}
 
 				// halt here, since a db name was provided. no need to clear caches, etc
