@@ -1,6 +1,5 @@
 /*
 Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
 */
 package cwutils
 
@@ -34,6 +33,37 @@ type CwVars struct {
 	Branch_name        string
 	DEFAULT_DIR_FOREST string
 	DEFAULT_DIR_LOCAL  string
+}
+
+type Context struct {
+	Git  *Git
+	Site *Site
+	Ssh  Ssh
+}
+
+type Ssh struct {
+	Username string
+	Hostname string
+}
+
+type Git struct {
+	Branch   string
+	Domain   string
+	Username string
+}
+
+type Site struct {
+	IsPantheon   bool
+	IsDrupal     bool
+	Domain       string
+	DocumentRoot string
+	Database     *string
+	Platform     string
+}
+
+type Framework struct {
+	Name    string
+	version string
 }
 
 func GetProjectVars() CwVars {
@@ -162,4 +192,45 @@ func CheckLocalConfigOverrides(projectRoot string) {
 			log.Fatal(err)
 		}
 	}
+}
+
+func contextTest() {
+	// create an empty Context struct
+	ctx := Context{}
+	prettyPrint(ctx)
+
+	// create a Site struct in the Context
+	// we use &Site{} here b/c the struct has *Site (a pointer to a Site struct).
+	//
+	// why *Site? b/c the Site might be null. Maybe we run `cw` in a dir
+	// where there's no detectable site, so we dont' want a full Site struct
+	// full of empty string variables. We just want the ctx.Site to end up being nil
+	ctx.Site = &Site{}
+	prettyPrint(ctx)
+
+	// we can directly assign the Domain b/c it's just a normal string
+	ctx.Site.Domain = "www.example.com"
+
+	// but we have to assign Database to a var, then assign the
+	// address of that var to the struct's database member,
+	// since it's a pointer to a string.
+	//
+	// why make it a pointer in the struct? so it can be be nil,
+	// like for a static site where there's no db at all
+	var database = "exampledb"
+	ctx.Site.Database = &database
+
+	// same thing with *Git. Maybe there's no git repo, but it's a legitimate site
+	// that only exists on the local machine.
+
+	prettyPrint(ctx)
+}
+
+func prettyPrint(ctx Context) {
+	ctxJson, err := json.MarshalIndent(ctx, "", "  ")
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+
+	fmt.Printf("**********\n%s\n", string(ctxJson))
 }

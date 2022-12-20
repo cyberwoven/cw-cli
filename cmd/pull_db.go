@@ -1,7 +1,3 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
-*/
 package cmd
 
 import (
@@ -21,7 +17,6 @@ import (
 	"github.com/spf13/viper"
 )
 
-// pullDbCmd represents the pullDb command
 var pullDbCmd = &cobra.Command{
 	Use:   "db",
 	Short: "Pull database from test down to sandbox",
@@ -159,8 +154,8 @@ var pullDbCmd = &cobra.Command{
 				}
 
 				if err != nil {
-					fmt.Printf("MYLOADER ERROR: %s", err.Error())
-					fmt.Print("Consider using the --force flag to drop and recreate the database.")
+					fmt.Printf("MYLOADER ERROR: %s\n\n", err.Error())
+					fmt.Print("Try running the command again with the --force flag to drop and recreate the database.\n")
 					os.Exit(1)
 				}
 
