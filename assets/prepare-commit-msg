@@ -1,0 +1,18 @@
+#!/bin/bash
+
+# if the taskId file doesn't exist, exit
+[ ! -f .taskId ] && exit 0;
+# if the taskId file is empty, exit
+[ ! -s .taskId ] && exit 0;
+
+# read taskID into a var
+TASK_ID=$( < .taskId )
+
+# read commit message into a var
+COMMIT_MSG=$( < $1 )
+
+# write the new commit message
+cat << EOT > $1
+$TASK_ID - $COMMIT_MSG
+
+https://cyberwoven.teamwork.com/app/tasks/$TASK_ID
