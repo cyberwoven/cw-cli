@@ -56,7 +56,7 @@ var taskCmd = &cobra.Command{
 				log.Fatal(err)
 			}
 
-			err = addToGitIgnoreIfNotExists(".taskId")
+			err = addToGitIgnoreIfNotExists("\n\n.taskId")
 			if err != nil {
 				log.Fatal(err)
 			}
