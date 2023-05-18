@@ -1,6 +1,3 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-*/
 package cwutils
 
 import (
@@ -38,32 +35,34 @@ type CwVars struct {
 type Context struct {
 	Git  *Git
 	Site *Site
-	Ssh  Ssh
+	Ssh  *Ssh
 }
 
 type Ssh struct {
-	Username string
-	Hostname string
+	Username string // "cyberwoven"
+	Hostname string // "exmp.test.cyberwoven.net"
 }
 
 type Git struct {
-	Branch   string
-	Domain   string
-	Username string
+	Branch    string // "dev/new-homepage"
+	Domain    string // "bitbucket.org"
+	Username  string // "git"
+	Workspace string // "cyberwoven"
 }
 
 type Site struct {
-	IsPantheon   bool
-	IsDrupal     bool
-	Domain       string
-	DocumentRoot string
-	Database     *string
-	Platform     string
+	IsPantheon   bool   // false
+	IsDrupal     bool   // true
+	Domain       string // "www.example.com"
+	ProjectRoot  string // "/home/username/Sites/www.example.com"
+	DocumentRoot string // "/home/username/Sites/www.example.com/pub"
+	DatabaseName string // "example"
+	Framework    *Framework
 }
 
 type Framework struct {
-	Name    string
-	version string
+	Name    string // "drupal"
+	Version string // "9.5.3"
 }
 
 func GetProjectVars() CwVars {
@@ -194,7 +193,7 @@ func CheckLocalConfigOverrides(projectRoot string) {
 	}
 }
 
-func contextTest() {
+func ContextTest() {
 	// create an empty Context struct
 	ctx := Context{}
 	prettyPrint(ctx)
@@ -218,7 +217,7 @@ func contextTest() {
 	// why make it a pointer in the struct? so it can be be nil,
 	// like for a static site where there's no db at all
 	var database = "exampledb"
-	ctx.Site.Database = &database
+	ctx.Site.DatabaseName = database
 
 	// same thing with *Git. Maybe there's no git repo, but it's a legitimate site
 	// that only exists on the local machine.
