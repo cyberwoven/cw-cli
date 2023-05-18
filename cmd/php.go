@@ -1,7 +1,3 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
-*/
 package cmd
 
 import (
@@ -66,7 +62,7 @@ var phpCmd = &cobra.Command{
 		}
 
 		if validVersion {
-			fmt.Println("Switching to PHP verion", newVersion)
+			fmt.Println("Switching to PHP version", newVersion)
 
 			unlinkCmd := exec.Command("brew", "unlink", "php@"+currentVersion)
 			unlinkCmd.Run()
