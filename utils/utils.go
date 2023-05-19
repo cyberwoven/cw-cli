@@ -179,6 +179,10 @@ func InitViperConfigEnv() {
 }
 
 func CheckLocalConfigOverrides(projectRoot string) {
+	if projectRoot == "" {
+		return
+	}
+
 	viper.SetConfigName("config")
 	viper.AddConfigPath(projectRoot + "/.cw")
 	if err := viper.MergeInConfig(); err != nil {
@@ -193,39 +197,183 @@ func CheckLocalConfigOverrides(projectRoot string) {
 	}
 }
 
-func ContextTest() {
+type FlatContext struct {
+	SITES_DIR					string
+	GIT_DEFAULT_DOMAIN			string
+	GIT_DEFAULT_USER			string
+	SSH_TEST_USER				string
+	SSH_TEST_HOST				string
+	IS_GIT_REPO					bool
+	IS_SITE						bool
+	HAS_DATABASE				bool
+	IS_DRUPAL7					bool
+	IS_PANTHEON					bool
+	GIT_BRANCH					string
+	GIT_BRANCH_SLUG				string
+	SITE_NAME					string
+	SITE_TYPE					string
+	SITE_DOCUMENT_ROOT			string
+	PROJECT_ROOT				string
+	DATABASE_IMPORT_DIR			string
+	DATABASE_NAME				string
+	DATABASE_BASENAME			string
+	DRUPAL_CORE_VERSION			string
+	DRUPAL_DEFAULT_DIR_LOCAL	string
+	DRUPAL_DEFAULT_DIR_REMOTE	string
+	WP_UPLOADS_DIR_LOCAL		string
+	WP_UPLOADS_DIR_REMOTE		string
+}
+
+func LoadContext() FlatContext {
+
+	ctx := FlatContext{}
+
+	isGitRepoCmd, err := exec.Command("/usr/bin/git", "rev-parse", "--is-inside-work-tree").Output()
+	if err == nil {
+		ctx.IS_GIT_REPO = strings.TrimSpace(string(isGitRepoCmd)) == "true"
+	}
+
+	if ctx.IS_GIT_REPO {
+		gitBranchCmd, err := exec.Command("/usr/bin/git", "rev-parse", "--abbrev-ref", "HEAD").Output()
+		if err == nil {
+			branchName := strings.TrimSpace(string(gitBranchCmd))
+			branchSlug := strings.ReplaceAll(branchName, ".", "-")
+			branchSlug = strings.ReplaceAll(branchSlug, "/", "-")
+			branchSlug = strings.ReplaceAll(branchSlug, "_", "-")
+			ctx.GIT_BRANCH = branchName
+			ctx.GIT_BRANCH_SLUG = branchSlug
+
+		}
+
+		gitRootCmd, err := exec.Command("/usr/bin/git", "rev-parse", "--show-toplevel").Output()
+		if err == nil {
+			ctx.PROJECT_ROOT = strings.TrimSpace(string(gitRootCmd))
+		}
+	}
+
+	InitViperConfigEnv()
+	CheckLocalConfigOverrides(ctx.PROJECT_ROOT)
+
+	USER_HOME_DIRECTORY, err := os.UserHomeDir()
+	if err == nil {
+		ctx.SITES_DIR = fmt.Sprintf("%s/%s", USER_HOME_DIRECTORY, viper.GetString("CWCLI_SITES_DIR"))
+	}
+	
+	ctx.GIT_DEFAULT_DOMAIN = viper.GetString("CWCLI_GIT_DOMAIN")
+	ctx.GIT_DEFAULT_USER = viper.GetString("CWCLI_GIT_USER")
+	ctx.SSH_TEST_USER = viper.GetString("CWCLI_SSH_USER")
+	ctx.SSH_TEST_HOST = viper.GetString("CWCLI_SSH_TEST_SERVER")
+
+	cwd, err := os.Getwd()
+    if err == nil {
+		if strings.HasPrefix(cwd, ctx.SITES_DIR) {
+			childDir := strings.TrimPrefix(cwd, ctx.SITES_DIR)
+			
+			/**
+			 * if childDir == "/www.example.com/pub/sites/default"
+			 *
+			 *  dirParts[0] == ""
+			 *  dirParts[1] == "www.example.com"
+			 */
+			dirParts := strings.Split(childDir, "/")
+			siteName := dirParts[1]
+			projectRoot := fmt.Sprintf("%s/%s", ctx.SITES_DIR, siteName)
+			documentRoot := fmt.Sprintf("%s/%s", projectRoot, "pub")
+
+			if _, err := os.Stat(documentRoot); err == nil {
+				ctx.IS_SITE = true
+				ctx.SITE_NAME = siteName
+				ctx.PROJECT_ROOT = projectRoot
+				ctx.SITE_DOCUMENT_ROOT = documentRoot
+			}
+		}
+    }
+    
+	// dirty check for Pantheon
+	if _, err := os.Stat(ctx.PROJECT_ROOT + "/pantheon.yml"); err == nil {
+		ctx.IS_PANTHEON = true
+	} 
+
+	// dirty check for D7
+	if _, err := os.Stat(ctx.SITE_DOCUMENT_ROOT + "/misc/drupal.js"); err == nil {
+		ctx.IS_DRUPAL7 = true
+	}
+
+	// dirty check for wordpress
+	if _, err := os.Stat(ctx.SITE_DOCUMENT_ROOT + "/wp-config.php"); err == nil {
+		ctx.SITE_TYPE = "wordpress"
+		ctx.WP_UPLOADS_DIR_LOCAL = fmt.Sprintf("%s/wp-content/uploads", ctx.SITE_DOCUMENT_ROOT)
+		ctx.WP_UPLOADS_DIR_REMOTE = fmt.Sprintf("/var/www/vhosts/%s/%s/wp-content/uploads", ctx.SITE_NAME, ctx.GIT_BRANCH_SLUG)
+	}
+
+	/**
+	 * Try detecting Drupal stuff now...only if we know:
+	 *  - it's NOT wordpress
+	 *  - there's a pub/index.php file present
+	 */
+	hasIndexPhp := false
+	if _, err := os.Stat(ctx.SITE_DOCUMENT_ROOT + "/index.php"); err == nil {
+		hasIndexPhp = true
+	}
+
+	if hasIndexPhp && ctx.SITE_TYPE != "wordpress" {
+
+		drushCmd := exec.Command("drush", "status", "--format=json")
+		drushCmdOutput, err := drushCmd.Output()
+		if err == nil {
+			var drushStatus DrushStatus
+			json.Unmarshal([]byte(drushCmdOutput), &drushStatus)
+	
+			ctx.SITE_TYPE = "drupal"
+			ctx.DATABASE_NAME = drushStatus.DbName
+			ctx.DRUPAL_CORE_VERSION = drushStatus.DrupalVersion
+		}
+		
+	}
+	
+	
+	return ctx
+}
+
+func FlatContextTest() {
 	// create an empty Context struct
-	ctx := Context{}
-	prettyPrint(ctx)
-
-	// create a Site struct in the Context
-	// we use &Site{} here b/c the struct has *Site (a pointer to a Site struct).
-	//
-	// why *Site? b/c the Site might be null. Maybe we run `cw` in a dir
-	// where there's no detectable site, so we dont' want a full Site struct
-	// full of empty string variables. We just want the ctx.Site to end up being nil
-	ctx.Site = &Site{}
-	prettyPrint(ctx)
-
-	// we can directly assign the Domain b/c it's just a normal string
-	ctx.Site.Domain = "www.example.com"
-
-	// but we have to assign Database to a var, then assign the
-	// address of that var to the struct's database member,
-	// since it's a pointer to a string.
-	//
-	// why make it a pointer in the struct? so it can be be nil,
-	// like for a static site where there's no db at all
-	var database = "exampledb"
-	ctx.Site.DatabaseName = database
-
-	// same thing with *Git. Maybe there's no git repo, but it's a legitimate site
-	// that only exists on the local machine.
-
+	ctx := LoadContext()
 	prettyPrint(ctx)
 }
 
-func prettyPrint(ctx Context) {
+// func ContextTest() {
+// 	// create an empty Context struct
+// 	ctx := Context{}
+// 	prettyPrint(ctx)
+
+// 	// create a Site struct in the Context
+// 	// we use &Site{} here b/c the struct has *Site (a pointer to a Site struct).
+// 	//
+// 	// why *Site? b/c the Site might be null. Maybe we run `cw` in a dir
+// 	// where there's no detectable site, so we dont' want a full Site struct
+// 	// full of empty string variables. We just want the ctx.Site to end up being nil
+// 	ctx.Site = &Site{}
+// 	prettyPrint(ctx)
+
+// 	// we can directly assign the Domain b/c it's just a normal string
+// 	ctx.Site.Domain = "www.example.com"
+
+// 	// but we have to assign Database to a var, then assign the
+// 	// address of that var to the struct's database member,
+// 	// since it's a pointer to a string.
+// 	//
+// 	// why make it a pointer in the struct? so it can be be nil,
+// 	// like for a static site where there's no db at all
+// 	var database = "exampledb"
+// 	ctx.Site.DatabaseName = database
+
+// 	// same thing with *Git. Maybe there's no git repo, but it's a legitimate site
+// 	// that only exists on the local machine.
+
+// 	prettyPrint(ctx)
+// }
+
+func prettyPrint(ctx FlatContext) {
 	ctxJson, err := json.MarshalIndent(ctx, "", "  ")
 	if err != nil {
 		log.Fatalf(err.Error())

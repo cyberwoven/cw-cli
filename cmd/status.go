@@ -21,7 +21,7 @@ var statusCmd = &cobra.Command{
 		// }
 		// fmt.Printf("ProjectVars %s\n", string(cwVarsJson))
 
-		cwutils.ContextTest()
+		cwutils.FlatContextTest()
 	},
 }
 
