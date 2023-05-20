@@ -220,6 +220,8 @@ type FlatContext struct {
 	DRUPAL_CORE_VERSION			string
 	DRUPAL_DEFAULT_DIR_LOCAL	string
 	DRUPAL_DEFAULT_DIR_REMOTE	string
+	DRUPAL_PRIVATE_FILES_DIR	string
+	DRUPAL_PUBLIC_FILES_DIR		string
 	WP_UPLOADS_DIR_LOCAL		string
 	WP_UPLOADS_DIR_REMOTE		string
 }
@@ -324,9 +326,29 @@ func LoadContext() FlatContext {
 			var drushStatus DrushStatus
 			json.Unmarshal([]byte(drushCmdOutput), &drushStatus)
 	
+			dbParts := strings.Split(drushStatus.DbName, "__")
+
 			ctx.SITE_TYPE = "drupal"
-			ctx.DATABASE_NAME = drushStatus.DbName
 			ctx.DRUPAL_CORE_VERSION = drushStatus.DrupalVersion
+			ctx.DATABASE_NAME = drushStatus.DbName
+			ctx.DATABASE_BASENAME = dbParts[0]
+			
+			//drush php:eval "echo \Drupal::service('file_system')->realpath('private://');"
+
+			showPrivateFiles := "echo Drupal::service('file_system')->realpath('private://');"
+			showPublicFiles  := "echo Drupal::service('file_system')->realpath('public://');"
+
+			drushPrivateFiles, err := exec.Command("drush", "php:eval", showPrivateFiles).Output()
+			if err == nil {
+				ctx.DRUPAL_PRIVATE_FILES_DIR = strings.TrimSpace(string(drushPrivateFiles))
+			}
+
+			drushPublicFiles, err := exec.Command("drush", "php:eval", showPublicFiles).Output()
+			if err == nil {
+				ctx.DRUPAL_PUBLIC_FILES_DIR = strings.TrimSpace(string(drushPublicFiles))
+			}
+
+
 		}
 		
 	}
@@ -379,5 +401,5 @@ func prettyPrint(ctx FlatContext) {
 		log.Fatalf(err.Error())
 	}
 
-	fmt.Printf("**********\n%s\n", string(ctxJson))
+	fmt.Printf("\n%s\n", string(ctxJson))
 }
