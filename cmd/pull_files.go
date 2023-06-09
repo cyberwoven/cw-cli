@@ -14,10 +14,8 @@ import (
 	cwutils "cw-cli/utils"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
-// pullFilesCmd represents the pullFiles command
 var pullFilesCmd = &cobra.Command{
 	Use:   "files",
 	Short: "Pull files from test to sandbox",
@@ -25,20 +23,17 @@ var pullFilesCmd = &cobra.Command{
 		isFlaggedVerbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
 		isFlaggedSlow, _ := rootCmd.PersistentFlags().GetBool("slow")
 
-		var vars = cwutils.GetProjectVars()
-		cwutils.InitViperConfigEnv()
-		cwutils.CheckLocalConfigOverrides(vars.Project_root)
-		var sshUsername string = viper.GetString("CWCLI_SSH_USER")
-		var sshServerUrl string = viper.GetString("CWCLI_SSH_TEST_SERVER")
-		var rsyncRemote string = fmt.Sprintf("%s@%s:%s/files", sshUsername, sshServerUrl, vars.DEFAULT_DIR_FOREST)
+		ctx := cwutils.GetContext()
+		
+		var rsyncRemote string = fmt.Sprintf("%s@%s:%s/files", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST, ctx.DRUPAL_DEFAULT_DIR_REMOTE)
 
-		fmt.Printf("[%s] Starting file pull from branch '%s'.\n", vars.Drupal_site_name, vars.Branch_name)
+		fmt.Printf("[%s] Starting file pull from branch '%s'.\n", ctx.SITE_NAME, ctx.GIT_BRANCH)
 
-		if !vars.Is_pantheon {
+		if !ctx.IS_PANTHEON {
 			rsyncCmd := exec.Command("rsync",
 				"-vcrtzP",
 				rsyncRemote,
-				vars.DEFAULT_DIR_LOCAL,
+				ctx.DRUPAL_PUBLIC_FILES_DIR,
 				"--stats",
 				// "--dry-run",
 				"--exclude=advagg_css",
@@ -53,7 +48,7 @@ var pullFilesCmd = &cobra.Command{
 			stdout, _ := rsyncCmd.StdoutPipe()
 			stderr, _ := rsyncCmd.StderrPipe()
 
-			fmt.Printf("[%s] Pulling down files...\n", vars.Drupal_site_name)
+			fmt.Printf("[%s] Pulling down files...\n", ctx.SITE_NAME)
 
 			_ = rsyncCmd.Start()
 
@@ -70,8 +65,8 @@ var pullFilesCmd = &cobra.Command{
 		} else {
 
 			pantheonEnv := "dev"
-			if vars.Branch_name != "master" {
-				pantheonEnv = vars.Branch_name
+			if ctx.GIT_BRANCH_SLUG != "master" {
+				pantheonEnv = ctx.GIT_BRANCH_SLUG
 			}
 
 			if !isFlaggedSlow {
@@ -80,8 +75,8 @@ var pullFilesCmd = &cobra.Command{
 				 */
 				terminusRsyncArgs := []string{
 					"rsync",
-					fmt.Sprintf("%s.%s:files", vars.Drupal_site_name, pantheonEnv),
-					vars.DEFAULT_DIR_LOCAL,
+					fmt.Sprintf("%s.%s:files", ctx.SITE_NAME, pantheonEnv),
+					ctx.DRUPAL_DEFAULT_DIR_LOCAL,
 				}
 
 				rsyncCmd := exec.Command("terminus", terminusRsyncArgs...)
@@ -90,6 +85,8 @@ var pullFilesCmd = &cobra.Command{
 				_ = rsyncCmd.Start()
 
 				if isFlaggedVerbose {
+					fmt.Printf("[rsyncCmd] %s\n", rsyncCmd)
+					
 					rsyncScanner := bufio.NewScanner(io.MultiReader(rsyncStderr, rsyncStdout))
 					rsyncScanner.Split(bufio.ScanLines)
 					for rsyncScanner.Scan() {
@@ -102,8 +99,8 @@ var pullFilesCmd = &cobra.Command{
 			} else {
 
 				// CREATE BACKUP =========================================================
-				fmt.Printf("[%s] creating remote files archive...\n", vars.Drupal_site_name)
-				terminusBackupCreateCmd := exec.Command("terminus", "backup:create", vars.Drupal_site_name+"."+pantheonEnv, "--element=files")
+				fmt.Printf("[%s] creating remote files archive...\n", ctx.SITE_NAME)
+				terminusBackupCreateCmd := exec.Command("terminus", "backup:create", ctx.SITE_NAME+"."+pantheonEnv, "--element=files")
 				backupCreateStdout, _ := terminusBackupCreateCmd.StdoutPipe()
 				backupCreateStderr, _ := terminusBackupCreateCmd.StderrPipe()
 				// fmt.Println("[Running Command]: " + terminusBackupCreateCmd.String())
@@ -120,12 +117,12 @@ var pullFilesCmd = &cobra.Command{
 				_ = terminusBackupCreateCmd.Wait()
 
 				// GET BACKUP ============================================================
-				fmt.Printf("[%s] downloading files tarball...\n", vars.Drupal_site_name)
-				terminusBackupGetCmd := exec.Command("terminus", "backup:get", vars.Drupal_site_name+"."+pantheonEnv, "--element=files")
+				fmt.Printf("[%s] downloading files tarball...\n", ctx.SITE_NAME)
+				terminusBackupGetCmd := exec.Command("terminus", "backup:get", ctx.SITE_NAME+"."+pantheonEnv, "--element=files")
 				// fmt.Println("[Running Command]: " + terminusBackupGetCmd.String())
 				backupGetStdout, _ := terminusBackupGetCmd.Output()
 				// fmt.Println("[PANTHEON]: backup url - " + string(backupGetStdout))
-				wgetCmd := exec.Command("wget", "--quiet", "--show-progress", strings.TrimSpace(string(backupGetStdout)), "-O", "/tmp/files_"+vars.Drupal_dbname+".tar.gz")
+				wgetCmd := exec.Command("wget", "--quiet", "--show-progress", strings.TrimSpace(string(backupGetStdout)), "-O", "/tmp/files_"+ctx.SITE_NAME+".tar.gz")
 				wgetStdout, _ := wgetCmd.StdoutPipe()
 				wgetStderr, _ := wgetCmd.StderrPipe()
 				// fmt.Println("[Running Command]: " + wgetCmd.String())
@@ -144,38 +141,26 @@ var pullFilesCmd = &cobra.Command{
 
 				// EXTRACT BACKUP ========================================================
 				if isFlaggedVerbose {
-					fmt.Printf("[%s] extracting files tarball...\n", vars.Drupal_site_name)
+					fmt.Printf("[%s] extracting files tarball...\n", ctx.SITE_NAME)
 				}
-				mkdirCmd := exec.Command("mkdir", "/tmp/files_"+vars.Drupal_dbname)
+				mkdirCmd := exec.Command("mkdir", "/tmp/files_"+ctx.DATABASE_NAME)
 				_ = mkdirCmd.Run()
-				tarCmd := exec.Command("tar", "--directory=/tmp/files_"+vars.Drupal_dbname, "-xzvf", "/tmp/files_"+vars.Drupal_dbname+".tar.gz")
+				tarCmd := exec.Command("tar", "--directory=/tmp/files_"+ctx.DATABASE_NAME, "-xzvf", "/tmp/files_"+ctx.DATABASE_NAME+".tar.gz")
 				_ = tarCmd.Run()
 				// COPY EXTRACTED FILES ==================================================
 				if isFlaggedVerbose {
-					fmt.Printf("[%s] copying files into 'sites/default/files/' directory...\n", vars.Drupal_site_name)
+					fmt.Printf("[%s] copying files into 'sites/default/files/' directory...\n", ctx.SITE_NAME)
 				}
-				copyExtractCmd := exec.Command("rsync", "-vcrP", "--stats", "/tmp/files_"+vars.Drupal_dbname+"/files_dev/", vars.Drupal_root+"/sites/default/files/")
+				copyExtractCmd := exec.Command("rsync", "-vcrP", "--stats", "/tmp/files_"+ctx.DATABASE_NAME+"/files_dev/", ctx.DRUPAL_PUBLIC_FILES_DIR)
 				_ = copyExtractCmd.Run()
 
 			}
 		}
 
-		fmt.Printf("[%s] File pull complete.\n\n", vars.Drupal_site_name)
+		fmt.Printf("[%s] File pull complete.\n\n", ctx.SITE_NAME)
 	},
 }
 
 func init() {
 	pullCmd.AddCommand(pullFilesCmd)
 }
-
-// https://stackoverflow.com/questions/10510691/how-to-check-whether-a-file-or-directory-exists
-// func exists(path string) (bool, error) {
-// 	_, err := os.Stat(path)
-// 	if err == nil {
-// 		return true, nil
-// 	}
-// 	if os.IsNotExist(err) {
-// 		return false, nil
-// 	}
-// 	return false, err
-// }

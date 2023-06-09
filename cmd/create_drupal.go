@@ -13,11 +13,22 @@ import (
 // drupalCmd represents the drupal command
 var drupalCmd = &cobra.Command{
 	Use:   "drupal",
-	Short: "Create a Drupal 9 site",
+	Short: "Create a Drupal site",
 
 	Run: func(cmd *cobra.Command, args []string) {
+		/**
+		 * cw create drupal
+		 *  - run interactive install, prompt for domain name, db name
+		 *
+		 * cw create drupal www.example.com
+		 *  - prompt for db name, use composer create-project to create ~/Sites/www.example.com
+		 * 
+		 * cw create drupal www.example.com example
+		 *  - use composer create-project to create ~/Sites/www.example.com, use "example" as dbname
+		 */
+
 		fmt.Println("drupal called!")
-		// 1. clone drupal-starter repo
+
 		for i, s := range args {
 			fmt.Println(i, s)
 		}

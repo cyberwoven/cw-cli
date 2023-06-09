@@ -9,7 +9,6 @@ import (
 	cwutils "cw-cli/utils"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 // uliCmd represents the uli command
@@ -19,12 +18,6 @@ var uliCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 		isFlaggedTest, _ := cmd.Flags().GetBool("test")
-
-		cwutils.InitViperConfigEnv()
-
-		var vars cwutils.CwVars = cwutils.GetProjectVars()
-		cwutils.CheckLocalConfigOverrides(vars.Project_root)
-
 		uid, _ := cmd.Flags().GetInt("uid")
 
 		var LOGIN_URL string
@@ -32,12 +25,12 @@ var uliCmd = &cobra.Command{
 		var err error
 		var drushCmd *exec.Cmd
 
-		if isFlaggedTest {
-			var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
-			var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
+		ctx := cwutils.GetContext()
 
-			remoteUliCmd := fmt.Sprintf("cd %s && ~/bin/uli", vars.DEFAULT_DIR_FOREST)
-			drushCmd = exec.Command("ssh", SSH_USER+"@"+SSH_TEST_SERVER, remoteUliCmd)
+		if isFlaggedTest {
+			remoteUliCmd := fmt.Sprintf("cd %s && ~/bin/uli", ctx.DRUPAL_DEFAULT_DIR_REMOTE)
+			remoteHost := fmt.Sprintf("%s@%s", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST)
+			drushCmd = exec.Command("ssh", remoteHost, remoteUliCmd)
 		} else {
 			// local uli. let's nuke all sessions so we don't get the access denied error
 			err = exec.Command("drush", "sqlq", "TRUNCATE SESSIONS").Run()
@@ -45,7 +38,7 @@ var uliCmd = &cobra.Command{
 				fmt.Println(err.Error())
 			}
 
-			drushCmd = exec.Command("drush", "uli", "--uid", strconv.Itoa(uid), "--uri="+vars.Drupal_site_name+".test", "--no-browser")
+			drushCmd = exec.Command("drush", "uli", "--uid", strconv.Itoa(uid), "--uri=", ctx.SITE_NAME+".test", "--no-browser")
 		}
 
 		stdout, err = drushCmd.Output()
