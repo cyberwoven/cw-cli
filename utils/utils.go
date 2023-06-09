@@ -32,7 +32,7 @@ type CwVars struct {
 	DEFAULT_DIR_LOCAL  string
 }
 
-type Context struct {
+type StructContext struct {
 	Git  *Git
 	Site *Site
 	Ssh  *Ssh
@@ -197,7 +197,8 @@ func CheckLocalConfigOverrides(projectRoot string) {
 	}
 }
 
-type FlatContext struct {
+type Context struct {
+	HOME_DIR                    string
 	SITES_DIR					string
 	GIT_DEFAULT_DOMAIN			string
 	GIT_DEFAULT_USER			string
@@ -226,9 +227,8 @@ type FlatContext struct {
 	WP_UPLOADS_DIR_REMOTE		string
 }
 
-func LoadContext() FlatContext {
-
-	ctx := FlatContext{}
+func GetContext() Context {
+	ctx := Context{}
 
 	isGitRepoCmd, err := exec.Command("/usr/bin/git", "rev-parse", "--is-inside-work-tree").Output()
 	if err == nil {
@@ -258,6 +258,7 @@ func LoadContext() FlatContext {
 
 	USER_HOME_DIRECTORY, err := os.UserHomeDir()
 	if err == nil {
+		ctx.HOME_DIR = USER_HOME_DIRECTORY
 		ctx.SITES_DIR = fmt.Sprintf("%s/%s", USER_HOME_DIRECTORY, viper.GetString("CWCLI_SITES_DIR"))
 	}
 	
@@ -283,8 +284,8 @@ func LoadContext() FlatContext {
 			documentRoot := fmt.Sprintf("%s/%s", projectRoot, "pub")
 
 			if _, err := os.Stat(documentRoot); err == nil {
-				ctx.IS_SITE = true
-				ctx.SITE_NAME = siteName
+				ctx.IS_SITE      = true
+				ctx.SITE_NAME    = siteName
 				ctx.PROJECT_ROOT = projectRoot
 				ctx.SITE_DOCUMENT_ROOT = documentRoot
 			}
@@ -296,11 +297,6 @@ func LoadContext() FlatContext {
 		ctx.IS_PANTHEON = true
 	} 
 
-	// dirty check for D7
-	if _, err := os.Stat(ctx.SITE_DOCUMENT_ROOT + "/misc/drupal.js"); err == nil {
-		ctx.IS_DRUPAL7 = true
-	}
-
 	// dirty check for wordpress
 	if _, err := os.Stat(ctx.SITE_DOCUMENT_ROOT + "/wp-config.php"); err == nil {
 		ctx.SITE_TYPE = "wordpress"
@@ -308,18 +304,14 @@ func LoadContext() FlatContext {
 		ctx.WP_UPLOADS_DIR_REMOTE = fmt.Sprintf("/var/www/vhosts/%s/%s/wp-content/uploads", ctx.SITE_NAME, ctx.GIT_BRANCH_SLUG)
 	}
 
-	/**
-	 * Try detecting Drupal stuff now...only if we know:
-	 *  - it's NOT wordpress
-	 *  - there's a pub/index.php file present
-	 */
+	// site has an index.php, but isn't WP? most likely it's Drupal, so
+	// let's try to load the drupal vars via drush
 	hasIndexPhp := false
 	if _, err := os.Stat(ctx.SITE_DOCUMENT_ROOT + "/index.php"); err == nil {
 		hasIndexPhp = true
 	}
 
 	if hasIndexPhp && ctx.SITE_TYPE != "wordpress" {
-
 		drushCmd := exec.Command("drush", "status", "--format=json")
 		drushCmdOutput, err := drushCmd.Output()
 		if err == nil {
@@ -328,12 +320,17 @@ func LoadContext() FlatContext {
 	
 			dbParts := strings.Split(drushStatus.DbName, "__")
 
-			ctx.SITE_TYPE = "drupal"
+			ctx.SITE_TYPE           = "drupal"
 			ctx.DRUPAL_CORE_VERSION = drushStatus.DrupalVersion
-			ctx.DATABASE_NAME = drushStatus.DbName
-			ctx.DATABASE_BASENAME = dbParts[0]
-			
-			//drush php:eval "echo \Drupal::service('file_system')->realpath('private://');"
+			ctx.DATABASE_NAME       = drushStatus.DbName
+			ctx.DATABASE_BASENAME   = dbParts[0]
+
+			if string(ctx.DRUPAL_CORE_VERSION[0]) == "7" {
+				ctx.IS_DRUPAL7 = true
+			}
+
+			ctx.DRUPAL_DEFAULT_DIR_LOCAL = fmt.Sprintf("%s/sites/default", ctx.SITE_DOCUMENT_ROOT)
+			ctx.DRUPAL_DEFAULT_DIR_REMOTE = fmt.Sprintf("/var/www/vhosts/%s/%s/pub/sites/default", ctx.SITE_NAME, ctx.GIT_BRANCH_SLUG)
 
 			showPrivateFiles := "echo Drupal::service('file_system')->realpath('private://');"
 			showPublicFiles  := "echo Drupal::service('file_system')->realpath('public://');"
@@ -346,56 +343,24 @@ func LoadContext() FlatContext {
 			drushPublicFiles, err := exec.Command("drush", "php:eval", showPublicFiles).Output()
 			if err == nil {
 				ctx.DRUPAL_PUBLIC_FILES_DIR = strings.TrimSpace(string(drushPublicFiles))
+
 			}
 
-
+			
 		}
 		
 	}
 	
-	
 	return ctx
 }
 
-func FlatContextTest() {
+func ContextTest() {
 	// create an empty Context struct
-	ctx := LoadContext()
-	prettyPrint(ctx)
+	ctx := GetContext()
+	PrettyPrint(ctx)
 }
 
-// func ContextTest() {
-// 	// create an empty Context struct
-// 	ctx := Context{}
-// 	prettyPrint(ctx)
-
-// 	// create a Site struct in the Context
-// 	// we use &Site{} here b/c the struct has *Site (a pointer to a Site struct).
-// 	//
-// 	// why *Site? b/c the Site might be null. Maybe we run `cw` in a dir
-// 	// where there's no detectable site, so we dont' want a full Site struct
-// 	// full of empty string variables. We just want the ctx.Site to end up being nil
-// 	ctx.Site = &Site{}
-// 	prettyPrint(ctx)
-
-// 	// we can directly assign the Domain b/c it's just a normal string
-// 	ctx.Site.Domain = "www.example.com"
-
-// 	// but we have to assign Database to a var, then assign the
-// 	// address of that var to the struct's database member,
-// 	// since it's a pointer to a string.
-// 	//
-// 	// why make it a pointer in the struct? so it can be be nil,
-// 	// like for a static site where there's no db at all
-// 	var database = "exampledb"
-// 	ctx.Site.DatabaseName = database
-
-// 	// same thing with *Git. Maybe there's no git repo, but it's a legitimate site
-// 	// that only exists on the local machine.
-
-// 	prettyPrint(ctx)
-// }
-
-func prettyPrint(ctx FlatContext) {
+func PrettyPrint(ctx Context) {
 	ctxJson, err := json.MarshalIndent(ctx, "", "  ")
 	if err != nil {
 		log.Fatalf(err.Error())
