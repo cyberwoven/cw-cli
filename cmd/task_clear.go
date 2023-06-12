@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"fmt"
 	"log"
 	"os"
 
@@ -35,6 +36,8 @@ func clearTaskId() error {
 	if err != nil {
 		return err
 	}
+
+	fmt.Println(".taskId successfully cleared.")
 
 	return nil
 }

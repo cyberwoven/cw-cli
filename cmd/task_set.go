@@ -18,7 +18,7 @@ var taskSetCmd = &cobra.Command{
 
 		// Handle argument count errors
 		if len(args) == 0 {
-			log.Fatal("Operation failed: No task ID provided.")
+			log.Fatal("Operation failed: No task ID provided.  Usage: cw task set [taskId]")
 		}
 		if len(args) > 1 {
 			log.Fatalf("Operation failed: Expected 1 argument (taskId) and received %d.", len(args))

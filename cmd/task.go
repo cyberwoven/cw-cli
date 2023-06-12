@@ -18,7 +18,7 @@ var taskCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		// Perform task reading by default
 		if len(args) == 0 {
-			taskID, err := readTaskID()
+			taskID, err := readTaskId()
 			if err != nil {
 				log.Fatal(err)
 			}
