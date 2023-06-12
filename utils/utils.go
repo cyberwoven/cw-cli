@@ -162,7 +162,7 @@ func InitViperConfigEnv() {
 		log.Fatal(err)
 	}
 
-	viper.SetEnvPrefix("CWCWLI")
+	viper.SetEnvPrefix("CWCLI")
 	viper.AutomaticEnv()
 	viper.SetConfigName("default")
 	viper.SetConfigType("env")
@@ -198,34 +198,35 @@ func CheckLocalConfigOverrides(projectRoot string) {
 }
 
 type Context struct {
-	HOME_DIR                    string
-	SITES_DIR					string
-	GIT_DEFAULT_USER			string
-	GIT_DEFAULT_DOMAIN			string
-	GIT_DEFAULT_WORKSPACE		string
-	SSH_TEST_USER				string
-	SSH_TEST_HOST				string
-	IS_GIT_REPO					bool
-	IS_SITE						bool
-	HAS_DATABASE				bool
-	IS_DRUPAL7					bool
-	IS_PANTHEON					bool
-	GIT_BRANCH					string
-	GIT_BRANCH_SLUG				string
-	SITE_NAME					string
-	SITE_TYPE					string
-	SITE_DOCUMENT_ROOT			string
-	PROJECT_ROOT				string
-	DATABASE_IMPORT_DIR			string
-	DATABASE_NAME				string
-	DATABASE_BASENAME			string
-	DRUPAL_CORE_VERSION			string
-	DRUPAL_DEFAULT_DIR_LOCAL	string
-	DRUPAL_DEFAULT_DIR_REMOTE	string
-	DRUPAL_PRIVATE_FILES_DIR	string
-	DRUPAL_PUBLIC_FILES_DIR		string
-	WP_UPLOADS_DIR_LOCAL		string
-	WP_UPLOADS_DIR_REMOTE		string
+	HOME_DIR                  string
+	SITES_DIR                 string
+	GIT_DEFAULT_USER          string
+	GIT_DEFAULT_DOMAIN        string
+	GIT_DEFAULT_WORKSPACE     string
+	SSH_TEST_USER             string
+	SSH_TEST_HOST             string
+	IS_GIT_REPO               bool
+	IS_SITE                   bool
+	HAS_DATABASE              bool
+	IS_DRUPAL7                bool
+	IS_PANTHEON               bool
+	GIT_BRANCH                string
+	GIT_BRANCH_SLUG           string
+	SITE_NAME                 string
+	SITE_TYPE                 string
+	SITE_DOCUMENT_ROOT        string
+	PROJECT_ROOT              string
+	DATABASE_IMPORT_DIR       string
+	DATABASE_NAME             string
+	DATABASE_BASENAME         string
+	DRUPAL_CORE_VERSION       string
+	DRUPAL_DEFAULT_DIR_LOCAL  string
+	DRUPAL_DEFAULT_DIR_REMOTE string
+	DRUPAL_PRIVATE_FILES_DIR  string
+	DRUPAL_PUBLIC_FILES_DIR   string
+	WP_UPLOADS_DIR_LOCAL      string
+	WP_UPLOADS_DIR_REMOTE     string
+	TASK_URL_PREFIX           string
 }
 
 func GetContext() Context {
@@ -262,40 +263,41 @@ func GetContext() Context {
 		ctx.HOME_DIR = USER_HOME_DIRECTORY
 		ctx.SITES_DIR = fmt.Sprintf("%s/%s", USER_HOME_DIRECTORY, viper.GetString("CWCLI_SITES_DIR"))
 	}
-	
-	ctx.GIT_DEFAULT_USER      = viper.GetString("CWCLI_GIT_USER")
-	ctx.GIT_DEFAULT_DOMAIN    = viper.GetString("CWCLI_GIT_DOMAIN")
+
+	ctx.GIT_DEFAULT_USER = viper.GetString("CWCLI_GIT_USER")
+	ctx.GIT_DEFAULT_DOMAIN = viper.GetString("CWCLI_GIT_DOMAIN")
 	ctx.GIT_DEFAULT_WORKSPACE = viper.GetString("CWCLI_GIT_WORKSPACE")
-	ctx.SSH_TEST_USER         = viper.GetString("CWCLI_SSH_USER")
-	ctx.SSH_TEST_HOST         = viper.GetString("CWCLI_SSH_TEST_SERVER")
+	ctx.SSH_TEST_USER = viper.GetString("CWCLI_SSH_USER")
+	ctx.SSH_TEST_HOST = viper.GetString("CWCLI_SSH_TEST_SERVER")
+	ctx.TASK_URL_PREFIX = viper.GetString("CWCLI_TASK_URL_PREFIX")
 
 	cwd, err := os.Getwd()
-    if err == nil && cwd != ctx.SITES_DIR && strings.HasPrefix(cwd, ctx.SITES_DIR) {
+	if err == nil && cwd != ctx.SITES_DIR && strings.HasPrefix(cwd, ctx.SITES_DIR) {
 		childDir := strings.TrimPrefix(cwd, ctx.SITES_DIR)
-		
+
 		/**
-			* if childDir == "/www.example.com/pub/sites/default"
-			*
-			*  dirParts[0] == ""
-			*  dirParts[1] == "www.example.com"
-			*/
+		* if childDir == "/www.example.com/pub/sites/default"
+		*
+		*  dirParts[0] == ""
+		*  dirParts[1] == "www.example.com"
+		 */
 		dirParts := strings.Split(childDir, "/")
 		siteName := dirParts[1]
 		projectRoot := fmt.Sprintf("%s/%s", ctx.SITES_DIR, siteName)
 		documentRoot := fmt.Sprintf("%s/%s", projectRoot, "pub")
 
 		if _, err := os.Stat(documentRoot); err == nil {
-			ctx.IS_SITE      = true
-			ctx.SITE_NAME    = siteName
+			ctx.IS_SITE = true
+			ctx.SITE_NAME = siteName
 			ctx.PROJECT_ROOT = projectRoot
 			ctx.SITE_DOCUMENT_ROOT = documentRoot
 		}
-    }
-    
+	}
+
 	// dirty check for Pantheon
 	if _, err := os.Stat(ctx.PROJECT_ROOT + "/pantheon.yml"); err == nil {
 		ctx.IS_PANTHEON = true
-	} 
+	}
 
 	// dirty check for wordpress
 	if _, err := os.Stat(ctx.SITE_DOCUMENT_ROOT + "/wp-config.php"); err == nil {
@@ -317,13 +319,13 @@ func GetContext() Context {
 		if err == nil {
 			var drushStatus DrushStatus
 			json.Unmarshal([]byte(drushCmdOutput), &drushStatus)
-	
+
 			dbParts := strings.Split(drushStatus.DbName, "__")
 
-			ctx.SITE_TYPE           = "drupal"
+			ctx.SITE_TYPE = "drupal"
 			ctx.DRUPAL_CORE_VERSION = drushStatus.DrupalVersion
-			ctx.DATABASE_NAME       = drushStatus.DbName
-			ctx.DATABASE_BASENAME   = dbParts[0]
+			ctx.DATABASE_NAME = drushStatus.DbName
+			ctx.DATABASE_BASENAME = dbParts[0]
 
 			if string(ctx.DRUPAL_CORE_VERSION[0]) == "7" {
 				ctx.IS_DRUPAL7 = true
@@ -333,7 +335,7 @@ func GetContext() Context {
 			ctx.DRUPAL_DEFAULT_DIR_REMOTE = fmt.Sprintf("/var/www/vhosts/%s/%s/pub/sites/default", ctx.SITE_NAME, ctx.GIT_BRANCH_SLUG)
 
 			showPrivateFiles := "echo Drupal::service('file_system')->realpath('private://');"
-			showPublicFiles  := "echo Drupal::service('file_system')->realpath('public://');"
+			showPublicFiles := "echo Drupal::service('file_system')->realpath('public://');"
 
 			drushPrivateFiles, err := exec.Command("drush", "php:eval", showPrivateFiles).Output()
 			if err == nil {
@@ -346,11 +348,10 @@ func GetContext() Context {
 
 			}
 
-			
 		}
-		
+
 	}
-	
+
 	return ctx
 }
 
