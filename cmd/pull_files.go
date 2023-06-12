@@ -11,8 +11,6 @@ import (
 	"os/exec"
 	"strings"
 
-	cwutils "cw-cli/utils"
-
 	"github.com/spf13/cobra"
 )
 
@@ -22,8 +20,6 @@ var pullFilesCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		isFlaggedVerbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
 		isFlaggedSlow, _ := rootCmd.PersistentFlags().GetBool("slow")
-
-		ctx := cwutils.GetContext()
 		
 		var rsyncRemote string = fmt.Sprintf("%s@%s:%s/files", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST, ctx.DRUPAL_DEFAULT_DIR_REMOTE)
 

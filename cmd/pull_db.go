@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"bufio"
-	cwutils "cw-cli/utils"
 	"fmt"
 	"io"
 	"log"
@@ -27,8 +26,6 @@ var pullDbCmd = &cobra.Command{
 		isFlaggedForce, _ := rootCmd.PersistentFlags().GetBool("force")
 
 		explicitDatabaseName, _ := cmd.PersistentFlags().GetString("name")
-
-		ctx := cwutils.GetContext()
 
 		user, err := user.Current()
 		if err != nil {

@@ -6,8 +6,6 @@ import (
 	"strconv"
 	"strings"
 
-	cwutils "cw-cli/utils"
-
 	"github.com/spf13/cobra"
 )
 
@@ -24,8 +22,6 @@ var uliCmd = &cobra.Command{
 		var stdout []byte
 		var err error
 		var drushCmd *exec.Cmd
-
-		ctx := cwutils.GetContext()
 
 		if isFlaggedTest {
 			remoteUliCmd := fmt.Sprintf("cd %s && ~/bin/uli", ctx.DRUPAL_DEFAULT_DIR_REMOTE)

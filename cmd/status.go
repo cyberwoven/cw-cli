@@ -12,7 +12,7 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Pretty print the relevant vars of the current site",
 	Run: func(cmd *cobra.Command, args []string) {
-		cwutils.PrettyPrint(cwutils.GetContext())
+		cwutils.PrettyPrint(ctx)
 	},
 }
 

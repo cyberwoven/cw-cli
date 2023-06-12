@@ -200,8 +200,9 @@ func CheckLocalConfigOverrides(projectRoot string) {
 type Context struct {
 	HOME_DIR                    string
 	SITES_DIR					string
-	GIT_DEFAULT_DOMAIN			string
 	GIT_DEFAULT_USER			string
+	GIT_DEFAULT_DOMAIN			string
+	GIT_DEFAULT_WORKSPACE		string
 	SSH_TEST_USER				string
 	SSH_TEST_HOST				string
 	IS_GIT_REPO					bool
@@ -262,33 +263,32 @@ func GetContext() Context {
 		ctx.SITES_DIR = fmt.Sprintf("%s/%s", USER_HOME_DIRECTORY, viper.GetString("CWCLI_SITES_DIR"))
 	}
 	
-	ctx.GIT_DEFAULT_DOMAIN = viper.GetString("CWCLI_GIT_DOMAIN")
-	ctx.GIT_DEFAULT_USER = viper.GetString("CWCLI_GIT_USER")
-	ctx.SSH_TEST_USER = viper.GetString("CWCLI_SSH_USER")
-	ctx.SSH_TEST_HOST = viper.GetString("CWCLI_SSH_TEST_SERVER")
+	ctx.GIT_DEFAULT_USER      = viper.GetString("CWCLI_GIT_USER")
+	ctx.GIT_DEFAULT_DOMAIN    = viper.GetString("CWCLI_GIT_DOMAIN")
+	ctx.GIT_DEFAULT_WORKSPACE = viper.GetString("CWCLI_GIT_WORKSPACE")
+	ctx.SSH_TEST_USER         = viper.GetString("CWCLI_SSH_USER")
+	ctx.SSH_TEST_HOST         = viper.GetString("CWCLI_SSH_TEST_SERVER")
 
 	cwd, err := os.Getwd()
-    if err == nil {
-		if strings.HasPrefix(cwd, ctx.SITES_DIR) {
-			childDir := strings.TrimPrefix(cwd, ctx.SITES_DIR)
-			
-			/**
-			 * if childDir == "/www.example.com/pub/sites/default"
-			 *
-			 *  dirParts[0] == ""
-			 *  dirParts[1] == "www.example.com"
-			 */
-			dirParts := strings.Split(childDir, "/")
-			siteName := dirParts[1]
-			projectRoot := fmt.Sprintf("%s/%s", ctx.SITES_DIR, siteName)
-			documentRoot := fmt.Sprintf("%s/%s", projectRoot, "pub")
+    if err == nil && cwd != ctx.SITES_DIR && strings.HasPrefix(cwd, ctx.SITES_DIR) {
+		childDir := strings.TrimPrefix(cwd, ctx.SITES_DIR)
+		
+		/**
+			* if childDir == "/www.example.com/pub/sites/default"
+			*
+			*  dirParts[0] == ""
+			*  dirParts[1] == "www.example.com"
+			*/
+		dirParts := strings.Split(childDir, "/")
+		siteName := dirParts[1]
+		projectRoot := fmt.Sprintf("%s/%s", ctx.SITES_DIR, siteName)
+		documentRoot := fmt.Sprintf("%s/%s", projectRoot, "pub")
 
-			if _, err := os.Stat(documentRoot); err == nil {
-				ctx.IS_SITE      = true
-				ctx.SITE_NAME    = siteName
-				ctx.PROJECT_ROOT = projectRoot
-				ctx.SITE_DOCUMENT_ROOT = documentRoot
-			}
+		if _, err := os.Stat(documentRoot); err == nil {
+			ctx.IS_SITE      = true
+			ctx.SITE_NAME    = siteName
+			ctx.PROJECT_ROOT = projectRoot
+			ctx.SITE_DOCUMENT_ROOT = documentRoot
 		}
     }
     
