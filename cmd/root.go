@@ -9,7 +9,7 @@ import (
 var rootCmd = &cobra.Command{
 	Use:     "cw",
 	Short:   "Cyberwoven local web site development tool",
-	Version: "2.0.0",
+	Version: "2.0.1",
 }
 
 var ctx = cwutils.GetContext()
