@@ -16,6 +16,14 @@ var taskSetCmd = &cobra.Command{
 	Short: "Set the task ID",
 	Run: func(cmd *cobra.Command, args []string) {
 
+		// Handle argument count errors
+		if len(args) == 0 {
+			log.Fatal("Operation failed: No task ID provided.")
+		}
+		if len(args) > 1 {
+			log.Fatalf("Operation failed: Expected 1 argument (taskId) and received %d.", len(args))
+		}
+
 		// Write taskId.
 		if isStringNumeric(args[0]) {
 
