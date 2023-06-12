@@ -1,15 +1,16 @@
 package cmd
 
 import (
-	"os"
 	cwutils "cw-cli/utils"
+	"os"
+
 	"github.com/spf13/cobra"
 )
 
 var rootCmd = &cobra.Command{
 	Use:     "cw",
 	Short:   "Cyberwoven local web site development tool",
-	Version: "2.0.1",
+	Version: "2.0.2",
 }
 
 var ctx = cwutils.GetContext()

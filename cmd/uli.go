@@ -34,7 +34,7 @@ var uliCmd = &cobra.Command{
 				fmt.Println(err.Error())
 			}
 
-			drushCmd = exec.Command("drush", "uli", "--uid", strconv.Itoa(uid), "--uri=", ctx.SITE_NAME+".test", "--no-browser")
+			drushCmd = exec.Command("drush", "uli", "--uid", strconv.Itoa(uid), "--uri", ctx.SITE_NAME+".test", "--no-browser")
 		}
 
 		stdout, err = drushCmd.Output()
