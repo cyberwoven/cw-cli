@@ -342,10 +342,11 @@ func GetContext() Context {
 				ctx.DRUPAL_PRIVATE_FILES_DIR = strings.TrimSpace(string(drushPrivateFiles))
 			}
 
+			ctx.DRUPAL_PUBLIC_FILES_DIR = ctx.DRUPAL_DEFAULT_DIR_LOCAL + "/files"
 			drushPublicFiles, err := exec.Command("drush", "php:eval", showPublicFiles).Output()
-			if err == nil {
-				ctx.DRUPAL_PUBLIC_FILES_DIR = strings.TrimSpace(string(drushPublicFiles))
-
+			publicFiles := strings.TrimSpace(string(drushPublicFiles))
+			if err == nil && publicFiles != "" {
+				ctx.DRUPAL_PUBLIC_FILES_DIR = publicFiles
 			}
 
 		}
