@@ -1,6 +1,5 @@
 /*
 Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
@@ -20,26 +19,34 @@ var pullFilesCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		isFlaggedVerbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
 		isFlaggedSlow, _ := rootCmd.PersistentFlags().GetBool("slow")
-		
-		var rsyncRemote string = fmt.Sprintf("%s@%s:%s/files", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST, ctx.DRUPAL_DEFAULT_DIR_REMOTE)
 
 		fmt.Printf("[%s] Starting file pull from branch '%s'.\n", ctx.SITE_NAME, ctx.GIT_BRANCH)
 
 		if !ctx.IS_PANTHEON {
-			rsyncCmd := exec.Command("rsync",
-				"-vcrtzP",
-				rsyncRemote,
-				ctx.DRUPAL_PUBLIC_FILES_DIR,
-				"--stats",
-				// "--dry-run",
-				"--exclude=advagg_css",
-				"--exclude=advagg_js",
-				"--exclude=css",
-				"--exclude=ctools",
-				"--exclude=js",
-				"--exclude=php",
-				"--exclude=styles",
-				"--exclude=tmp")
+			rsyncCmd := exec.Command("rsync")
+			if ctx.SITE_TYPE == "drupal" {
+				rsyncRemote := fmt.Sprintf("%s@%s:%s/files", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST, ctx.DRUPAL_DEFAULT_DIR_REMOTE)
+				rsyncCmd = exec.Command("rsync",
+					"-vcrtzP",
+					rsyncRemote,
+					ctx.DRUPAL_PUBLIC_FILES_DIR,
+					"--stats",
+					"--exclude=advagg_css",
+					"--exclude=advagg_js",
+					"--exclude=css",
+					"--exclude=ctools",
+					"--exclude=js",
+					"--exclude=php",
+					"--exclude=styles",
+					"--exclude=tmp")
+			} else if ctx.SITE_TYPE == "wordpress" {
+				rsyncRemote := fmt.Sprintf("%s@%s:%s/", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST, ctx.WP_UPLOADS_DIR_REMOTE)
+				rsyncCmd = exec.Command("rsync",
+					"-vcrtzP",
+					rsyncRemote,
+					ctx.WP_UPLOADS_DIR_LOCAL,
+					"--stats")
+			}
 
 			stdout, _ := rsyncCmd.StdoutPipe()
 			stderr, _ := rsyncCmd.StderrPipe()
@@ -82,7 +89,7 @@ var pullFilesCmd = &cobra.Command{
 
 				if isFlaggedVerbose {
 					fmt.Printf("[rsyncCmd] %s\n", rsyncCmd)
-					
+
 					rsyncScanner := bufio.NewScanner(io.MultiReader(rsyncStderr, rsyncStdout))
 					rsyncScanner.Split(bufio.ScanLines)
 					for rsyncScanner.Scan() {

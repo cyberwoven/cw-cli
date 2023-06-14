@@ -303,7 +303,7 @@ func GetContext() Context {
 	if _, err := os.Stat(ctx.SITE_DOCUMENT_ROOT + "/wp-config.php"); err == nil {
 		ctx.SITE_TYPE = "wordpress"
 		ctx.WP_UPLOADS_DIR_LOCAL = fmt.Sprintf("%s/wp-content/uploads", ctx.SITE_DOCUMENT_ROOT)
-		ctx.WP_UPLOADS_DIR_REMOTE = fmt.Sprintf("/var/www/vhosts/%s/%s/wp-content/uploads", ctx.SITE_NAME, ctx.GIT_BRANCH_SLUG)
+		ctx.WP_UPLOADS_DIR_REMOTE = fmt.Sprintf("/var/www/vhosts/%s/%s/pub/wp-content/uploads", ctx.SITE_NAME, ctx.GIT_BRANCH_SLUG)
 
 		wpDbCmd := exec.Command("wp", "config", "get", "DB_NAME")
 		wpDbCmd.Dir = ctx.SITE_DOCUMENT_ROOT
