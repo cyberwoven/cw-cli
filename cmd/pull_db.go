@@ -46,10 +46,9 @@ var pullDbCmd = &cobra.Command{
 			os.Exit(1)
 		}
 
-		
 		var tempFilePath string
 		var gunzipCmdString string
-		
+
 		// var vars cwutils.CwVars
 		// cwutils.InitViperConfigEnv()
 		// var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
@@ -123,19 +122,21 @@ var pullDbCmd = &cobra.Command{
 					fmt.Printf("%s\n", rsyncOutput)
 				}
 
-				fmt.Printf("[%s] Dumping local session table %s\n", siteName, databaseDumpDir)
+				if ctx.SITE_TYPE == "drupal" {
+					fmt.Printf("[%s] Dumping local session table %s\n", siteName, databaseDumpDir)
 
-				mydumperArgs := []string{
-					"--user", username,
-					"--database", databaseName,
-					"--regex", fmt.Sprintf("%s.sessions", databaseName),
-					"--outputdir", databaseDumpDir,
-				}
+					mydumperArgs := []string{
+						"--user", username,
+						"--database", databaseName,
+						"--regex", fmt.Sprintf("%s.sessions", databaseName),
+						"--outputdir", databaseDumpDir,
+					}
 
-				mydumperOutput, err := exec.Command("mydumper", mydumperArgs...).CombinedOutput()
-				if err != nil {
-					fmt.Printf("MYDUMPER ERROR: %s\n%s", err.Error(), mydumperOutput)
-					os.Exit(1)
+					mydumperOutput, err := exec.Command("mydumper", mydumperArgs...).CombinedOutput()
+					if err != nil {
+						fmt.Printf("MYDUMPER ERROR: %s\n%s", err.Error(), mydumperOutput)
+						os.Exit(1)
+					}
 				}
 
 				fmt.Printf("[%s] Importing database files from %s\n", siteName, databaseDumpDir)
@@ -254,14 +255,16 @@ var pullDbCmd = &cobra.Command{
 			}
 		}
 
-		fmt.Printf("[%s] Clearing Drupal cache...\n", ctx.SITE_NAME)
+		if ctx.SITE_TYPE == "drupal" {
+			fmt.Printf("[%s] Clearing Drupal cache...\n", ctx.SITE_NAME)
 
-		drushArgs := []string{"cr"}
-		if ctx.IS_DRUPAL7 {
-			drushArgs = []string{"cc", "all"}
+			drushArgs := []string{"cr"}
+			if ctx.IS_DRUPAL7 {
+				drushArgs = []string{"cc", "all"}
+			}
+			drushCmd := exec.Command("drush", drushArgs...)
+			_ = drushCmd.Run()
 		}
-		drushCmd := exec.Command("drush", drushArgs...)
-		_ = drushCmd.Run()
 
 		fmt.Printf("[%s] Database pull complete.\n\n", ctx.SITE_NAME)
 	},

@@ -304,6 +304,13 @@ func GetContext() Context {
 		ctx.SITE_TYPE = "wordpress"
 		ctx.WP_UPLOADS_DIR_LOCAL = fmt.Sprintf("%s/wp-content/uploads", ctx.SITE_DOCUMENT_ROOT)
 		ctx.WP_UPLOADS_DIR_REMOTE = fmt.Sprintf("/var/www/vhosts/%s/%s/wp-content/uploads", ctx.SITE_NAME, ctx.GIT_BRANCH_SLUG)
+
+		wpDbCmd := exec.Command("wp", "config", "get", "DB_NAME")
+		wpDbCmd.Dir = ctx.SITE_DOCUMENT_ROOT
+		wpDbCmdOutput, err := wpDbCmd.Output()
+		if err == nil {
+			ctx.DATABASE_NAME = strings.TrimSpace(string(wpDbCmdOutput))
+		}
 	}
 
 	// site has an index.php, but isn't WP? most likely it's Drupal, so
