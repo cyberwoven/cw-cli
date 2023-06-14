@@ -1,6 +1,5 @@
 /*
 Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-
 */
 package cmd
 
@@ -22,7 +21,7 @@ var drupalCmd = &cobra.Command{
 		 *
 		 * cw create drupal www.example.com
 		 *  - prompt for db name, use composer create-project to create ~/Sites/www.example.com
-		 * 
+		 *
 		 * cw create drupal www.example.com example
 		 *  - use composer create-project to create ~/Sites/www.example.com, use "example" as dbname
 		 */
@@ -47,5 +46,5 @@ func init() {
 
 	// Cobra supports local flags which will only run when this command
 	// is called directly, e.g.:
-	// drupalCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
+	drupalCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
