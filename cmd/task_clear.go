@@ -14,6 +14,9 @@ var taskClearCmd = &cobra.Command{
 	Short: "Clear the current task ID",
 	Run: func(cmd *cobra.Command, args []string) {
 
+		if !ctx.IS_GIT_REPO {
+			log.Fatal("Operation failed: Project is not a git repository.")
+		}
 		// Clear taskId.
 		err := clearTaskId()
 		if err != nil {

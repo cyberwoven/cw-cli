@@ -16,6 +16,10 @@ var taskSetCmd = &cobra.Command{
 	Short: "Set the task ID",
 	Run: func(cmd *cobra.Command, args []string) {
 
+		if !ctx.IS_GIT_REPO {
+			log.Fatal("Operation failed: Project is not a git repository.")
+		}
+
 		// Handle argument count errors
 		if len(args) == 0 {
 			log.Fatal("Operation failed: No task ID provided.  Usage: cw task set [taskId]")

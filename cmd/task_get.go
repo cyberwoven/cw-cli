@@ -13,7 +13,9 @@ var taskGetCmd = &cobra.Command{
 	Use:   "get",
 	Short: "Get the task ID",
 	Run: func(cmd *cobra.Command, args []string) {
-
+		if !ctx.IS_GIT_REPO {
+			log.Fatal("Operation failed: Project is not a git repository.")
+		}
 		taskId, err := readTaskId()
 		if err != nil {
 			log.Fatal(err)
