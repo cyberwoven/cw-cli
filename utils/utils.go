@@ -6,6 +6,7 @@ import (
 	"log"
 	"os"
 	"os/exec"
+	"os/user"
 	"path"
 	"path/filepath"
 	"strings"
@@ -199,6 +200,7 @@ func CheckLocalConfigOverrides(projectRoot string) {
 }
 
 type Context struct {
+	USERNAME                  string
 	HOME_DIR                  string
 	DEFAULT_CONFIG_DIR        string
 	SITES_DIR                 string
@@ -233,6 +235,13 @@ type Context struct {
 
 func GetContext() Context {
 	ctx := Context{}
+
+	user, err := user.Current()
+	if err != nil {
+		log.Fatalf(err.Error())
+	}
+
+	ctx.USERNAME = user.Username
 
 	isGitRepoCmd, err := exec.Command("/usr/bin/git", "rev-parse", "--is-inside-work-tree").Output()
 	if err == nil {
