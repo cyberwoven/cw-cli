@@ -16,10 +16,6 @@ var taskSetCmd = &cobra.Command{
 	Short: "Set the task ID",
 	Run: func(cmd *cobra.Command, args []string) {
 
-		if !ctx.IS_GIT_REPO {
-			log.Fatal("Operation failed: Project is not a git repository.")
-		}
-
 		// Handle argument count errors
 		if len(args) == 0 {
 			log.Fatal("Operation failed: No task ID provided.  Usage: cw task set [taskId]")
@@ -46,17 +42,14 @@ var taskSetCmd = &cobra.Command{
 				log.Fatal(err)
 			}
 
-			err = createPrepareCommitMsgHook()
-			if err != nil {
-				log.Fatal(err)
-			}
-
 			err = writeTaskID(TASK_ID_FILEPATH, args[0])
 			if err != nil {
 				log.Fatal(err)
 			}
 
 			os.Exit(0)
+		} else {
+			log.Fatal("Operation failed: Non-numeric task ID provided.")
 		}
 
 	},
@@ -143,41 +136,4 @@ func createGitIgnoreIfNotExists() error {
 	}
 	// some other error occurred
 	return err
-}
-
-func createPrepareCommitMsgHook() error {
-
-	gitHookPath := ctx.PROJECT_ROOT + "/" + ".git/hooks/prepare-commit-msg"
-	data := []byte(`
-		#!/bin/bash
-
-		# if the taskId file doesn't exist, exit
-		[ ! -f .taskId ] && exit 0;
-		# if the taskId is empty, exit
-		[ ! -s .taskId ] && exit 0;
-		
-		# read taskID into a var
-		TASK_ID=$( < .taskId )
-		
-		# read commit message into a var
-		COMMIT_MSG=$( < $1 )
-		
-		# write the new commit message
-		cat << EOT > $1
-		$TASK_ID - $COMMIT_MSG
-		
-		` + ctx.TASK_URL_PREFIX + `$TASK_ID
-	`)
-
-	// Create or overwrite .git/hooks/prepare-commit-msg
-	err := os.WriteFile(gitHookPath, data, 0644)
-	if err != nil {
-		return err
-	}
-
-	err = os.Chmod(gitHookPath, 0755)
-	if err != nil {
-		return err
-	}
-	return nil
 }

@@ -1,9 +1,15 @@
+
 #!/bin/bash
 
 # if the taskId file doesn't exist, exit
 [ ! -f .taskId ] && exit 0;
-# if the taskId file is empty, exit
+# if the taskId is empty, exit
 [ ! -s .taskId ] && exit 0;
+
+source $HOME/.cw/default # ASSUMING this file exists on host
+
+# read URL_PREFIX into a var
+URL_PREFIX=$CWCLI_TASK_URL_PREFIX
 
 # read taskID into a var
 TASK_ID=$( < .taskId )
@@ -15,4 +21,4 @@ COMMIT_MSG=$( < $1 )
 cat << EOT > $1
 $TASK_ID - $COMMIT_MSG
 
-https://cyberwoven.teamwork.com/app/tasks/$TASK_ID
+$URL_PREFIX$TASK_ID

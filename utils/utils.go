@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	"path"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -199,6 +200,7 @@ func CheckLocalConfigOverrides(projectRoot string) {
 
 type Context struct {
 	HOME_DIR                  string
+	DEFAULT_CONFIG_DIR        string
 	SITES_DIR                 string
 	GIT_DEFAULT_USER          string
 	GIT_DEFAULT_DOMAIN        string
@@ -270,6 +272,7 @@ func GetContext() Context {
 	ctx.SSH_TEST_USER = viper.GetString("CWCLI_SSH_USER")
 	ctx.SSH_TEST_HOST = viper.GetString("CWCLI_SSH_TEST_SERVER")
 	ctx.TASK_URL_PREFIX = viper.GetString("CWCLI_TASK_URL_PREFIX")
+	ctx.DEFAULT_CONFIG_DIR = filepath.Join(USER_HOME_DIRECTORY, ".cw")
 
 	cwd, err := os.Getwd()
 	if err == nil && cwd != ctx.SITES_DIR && strings.HasPrefix(cwd, ctx.SITES_DIR) {
