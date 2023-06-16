@@ -27,14 +27,6 @@ var pushDbCmd = &cobra.Command{
 		}
 
 		//
-		// Ensure remote DB exists
-		//
-		fmt.Println(" - Ensure remote database exists: " + ctx.DATABASE_NAME)
-		remoteMysqlCreateCmd := fmt.Sprintf("mysqladmin create %s", ctx.DATABASE_NAME)
-		remoteHost := fmt.Sprintf("%s@%s", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST)
-		exec.Command("ssh", remoteHost, remoteMysqlCreateCmd).Run()
-
-		//
 		// Dump local DB
 		//
 		fmt.Println(" - Dump local database [schema]: " + ctx.DATABASE_NAME)
@@ -73,9 +65,22 @@ var pushDbCmd = &cobra.Command{
 			log.Fatal(err)
 		}
 
-		// fmt.Println(" - run remote myloader")
-		// fmt.Println(" - if drupal, flush remote cache")
+		//
+		// Load database on remote server
+		//
+		fmt.Println(" - Load remote database: " + ctx.DATABASE_NAME)
+		remoteLoadCmd := fmt.Sprintf("bash ~/bin/database-load.sh %s", ctx.DATABASE_NAME)
+		remoteHost := fmt.Sprintf("%s@%s", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST)
+		exec.Command("ssh", remoteHost, remoteLoadCmd).Run()
 
+		//
+		// Try to flush remote cache if this is a drupal site.
+		//
+		if ctx.SITE_TYPE == "drupal" {
+			fmt.Println(" - Attempting remote drush cache rebuild: " + ctx.DRUPAL_DEFAULT_DIR_REMOTE)
+			remoteLoadCmd := fmt.Sprintf("~/bin/drush cr --root=%s", ctx.DRUPAL_DEFAULT_DIR_REMOTE)
+			exec.Command("ssh", remoteHost, remoteLoadCmd).Run()
+		}
 	},
 }
 
