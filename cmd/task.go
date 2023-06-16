@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -19,19 +20,10 @@ var TASK_ID_FILEPATH = ctx.PROJECT_ROOT + "/" + ".taskId"
 var taskCmd = &cobra.Command{
 	Use:              "task",
 	Short:            "Set, get, clear the task ID",
+	Aliases:          []string{"t"},
 	PersistentPreRun: performPersistentPreRunActions,
 	Run: func(cmd *cobra.Command, args []string) {
-
-		// Perform task reading by default
-		if len(args) == 0 {
-			taskID, err := readTaskId()
-			if err != nil {
-				log.Fatal(err)
-			}
-			fmt.Println("Task ID:", taskID)
-			os.Exit(0)
-		}
-
+		taskGetCmd.Run(cmd, args)
 	},
 }
 
@@ -41,8 +33,30 @@ func performPersistentPreRunActions(cmd *cobra.Command, args []string) {
 		log.Fatal("Operation failed: Project is not a git repository.")
 	}
 
+	// Create .git/hooks dir if not exists
+	err := createGitHooksDirInProjectIfNotExists()
+	if err != nil {
+		log.Fatal("Operation failed: ", err)
+	}
+
+	// Create .git/hooks dir if not exists
+	err = createTaskIdFileIfNotExists()
+	if err != nil {
+		log.Fatal("Operation failed: ", err)
+	}
+
+	err = createGitIgnoreIfNotExists()
+	if err != nil {
+		log.Fatal("Operation failed: ", err)
+	}
+
+	err = addToGitIgnoreIfNotExists()
+	if err != nil {
+		log.Fatal("Operation failed: ", err)
+	}
+
 	// Create symlink
-	err := createHookSymlinkIfNotExists()
+	err = createHookSymlinkIfNotExists()
 	if err != nil {
 		log.Fatal("Operation failed: ", err)
 	}
@@ -57,8 +71,6 @@ func createHookSymlinkIfNotExists() error {
 	// Define path where the link will go (inside project's .git/hooks/)
 	linkPath := filepath.Join(ctx.PROJECT_ROOT, ".git", "hooks", PREPARE_COMMIT_MSG_HOOK_NAME)
 
-	// TODO: Configure .cw/git-hooks dir creation in setup.go
-	// TODO: Configure .cw self-update mechanism eventually
 	// Get the absolute path of the custom hook file.  We are ASSUMING dir is in place.
 	customHookPath := filepath.Join(ctx.DEFAULT_CONFIG_DIR, "git-hooks/task", PREPARE_COMMIT_MSG_HOOK_NAME)
 
@@ -79,12 +91,87 @@ func createHookSymlinkIfNotExists() error {
 	}
 
 	// Create the symbolic link if it doesn't exist
-	fmt.Printf("Linking %s to %s", customHookPath, PREPARE_COMMIT_MSG_HOOK_NAME)
+	fmt.Printf("Linking %s to %s\n", customHookPath, PREPARE_COMMIT_MSG_HOOK_NAME)
 	err := os.Symlink(customHookPath, linkPath)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("Created git hook symlink from %s to %s\n", customHookPath, PREPARE_COMMIT_MSG_HOOK_NAME)
+	fmt.Printf("Symlinked %s to %s\n", customHookPath, PREPARE_COMMIT_MSG_HOOK_NAME)
 
 	return nil
+}
+func createGitHooksDirInProjectIfNotExists() error {
+	dirPath := filepath.Join(ctx.PROJECT_ROOT, ".git", "hooks")
+
+	// Check if the directory already exists
+	if _, err := os.Stat(dirPath); os.IsNotExist(err) {
+		// Create the directory
+		err := os.Mkdir(dirPath, 0755)
+		if err != nil {
+			fmt.Println("Operation failed:", err)
+			return err
+		}
+
+		fmt.Println("Created .git/hooks directory.")
+	}
+
+	return nil
+}
+func createTaskIdFileIfNotExists() error {
+	_, err := os.Stat(TASK_ID_FILEPATH)
+	if err == nil {
+		// file exists, no need to create it
+		return nil
+	}
+	if os.IsNotExist(err) {
+		// file doesn't exist, create it
+		f, err := os.Create(TASK_ID_FILEPATH)
+		if err != nil {
+			return err
+		}
+		fmt.Println("Created .taskId file")
+		defer f.Close()
+		return nil
+	}
+	// some other error occurred
+	return err
+}
+func addToGitIgnoreIfNotExists() error {
+	const TASK_ID_GITIGNORE_VALUE = ".taskId"
+
+	gitIgnoreFilePath := ctx.PROJECT_ROOT + "/" + ".gitignore"
+	gitIgnoreData, err := os.ReadFile(gitIgnoreFilePath)
+	if err != nil {
+		return err
+	}
+
+	if !strings.Contains(string(gitIgnoreData), TASK_ID_GITIGNORE_VALUE) {
+		newGitIgnoreData := []byte(string(gitIgnoreData) + "\n\n" + TASK_ID_GITIGNORE_VALUE + "\n")
+		err := os.WriteFile(".gitignore", newGitIgnoreData, 0644)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+func createGitIgnoreIfNotExists() error {
+	gitIgnorePath := ctx.PROJECT_ROOT + "/" + ".gitignore"
+
+	_, err := os.Stat(gitIgnorePath)
+	if err == nil {
+		// file exists, no need to create it
+		return nil
+	}
+	if os.IsNotExist(err) {
+		// file doesn't exist, create it
+		f, err := os.Create(gitIgnorePath)
+		if err != nil {
+			return err
+		}
+		defer f.Close()
+		return nil
+	}
+	// some other error occurred
+	return err
 }
