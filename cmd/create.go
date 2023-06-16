@@ -1,6 +1,3 @@
-/*
-Copyright © 2022 NAME HERE <EMAIL ADDRESS>
-*/
 package cmd
 
 import (
@@ -17,7 +14,6 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// createCmd represents the create command
 var createCmd = &cobra.Command{
 	Use:   "create",
 	Short: "Create a new site from boilerplate",
@@ -127,11 +123,12 @@ var createCmd = &cobra.Command{
 func createDrupal(domain string, database string, theme string) {
 	fmt.Print("Creating a Drupal site, this will take a minute or two...")
 
+	projectRoot := ctx.SITES_DIR + "/" + domain
 	composerCmd := exec.Command(
 		"composer",
 		"create-project",
 		"cyberwoven/drupal",
-		ctx.SITES_DIR+"/"+domain,
+		projectRoot,
 	)
 
 	composerCmd.Env = os.Environ()
@@ -151,6 +148,13 @@ func createDrupal(domain string, database string, theme string) {
 	}
 
 	_ = composerCmd.Wait()
+
+	fmt.Println("New site is ready!")
+	url := uliGenerateLink(projectRoot, domain+".test")
+	uliOpenLink(url)
+
+	os.Chdir(ctx.SITE_DOCUMENT_ROOT + "/" + domain)
+	exec.Command("cw", "uli").Run()
 }
 
 func createNetlify(domain string) {
@@ -163,14 +167,4 @@ func createWordpress(domain string, database string, theme string) {
 
 func init() {
 	rootCmd.AddCommand(createCmd)
-
-	// Here you will define your flags and configuration settings.
-
-	// Cobra supports Persistent Flags which will work for this command
-	// and all subcommands, e.g.:
-	// createCmd.PersistentFlags().String("foo", "", "A help for foo")
-
-	// Cobra supports local flags which will only run when this command
-	// is called directly, e.g.:
-	// createCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
