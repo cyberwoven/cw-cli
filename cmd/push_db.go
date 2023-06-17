@@ -11,10 +11,9 @@ import (
 
 var pushDbCmd = &cobra.Command{
 	Use:   "db",
-	Short: "A brief description of your command",
+	Short: "Push db from local up to test",
 	Run: func(cmd *cobra.Command, args []string) {
 		var err error
-		fmt.Println("push db called")
 
 		if ctx.IS_PANTHEON {
 			fmt.Print("ABORT - push db is not implemented for Pantheon sites!")

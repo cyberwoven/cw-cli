@@ -29,7 +29,7 @@ var pullFilesCmd = &cobra.Command{
 				rsyncCmd = exec.Command("rsync",
 					"-vcrtzP",
 					rsyncRemote,
-					ctx.DRUPAL_PUBLIC_FILES_DIR,
+					ctx.DRUPAL_DEFAULT_DIR_LOCAL,
 					"--stats",
 					"--exclude=advagg_css",
 					"--exclude=advagg_js",
