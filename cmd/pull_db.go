@@ -49,11 +49,6 @@ var pullDbCmd = &cobra.Command{
 		var tempFilePath string
 		var gunzipCmdString string
 
-		// var vars cwutils.CwVars
-		// cwutils.InitViperConfigEnv()
-		// var SSH_TEST_SERVER string = viper.GetString("CWCLI_SSH_TEST_SERVER")
-		// var SSH_USER string = viper.GetString("CWCLI_SSH_USER")
-
 		databaseName := ""
 		if explicitDatabaseName != "" {
 			databaseName = explicitDatabaseName
