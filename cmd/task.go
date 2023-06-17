@@ -83,7 +83,7 @@ func createHookSymlinkIfNotExists() error {
 
 		// Check if it is a regular file
 		if fileInfo.Mode().IsRegular() {
-			err := fmt.Errorf("Unable to create git hook symlink.  A NON-symlink (regular file) prepare-commit-msg hook already exists at %s.  The file in place is not affiliated with the cw-cli.  The file must be manually deleted before replacing it with a symlink is possible.", filepath.Join(ctx.PROJECT_ROOT, ".git", "hooks", PREPARE_COMMIT_MSG_HOOK_NAME))
+			err := fmt.Errorf("unable to create git hook symlink.  A NON-symlink (regular file) prepare-commit-msg hook already exists at %s.  The file in place is not affiliated with the cw-cli.  The file must be manually deleted before replacing it with a symlink is possible", filepath.Join(ctx.PROJECT_ROOT, ".git", "hooks", PREPARE_COMMIT_MSG_HOOK_NAME))
 			log.Fatal("Operation failed: ", err)
 		}
 
