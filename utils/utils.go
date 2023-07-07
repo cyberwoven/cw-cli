@@ -257,7 +257,6 @@ func GetContext() Context {
 			branchSlug = strings.ReplaceAll(branchSlug, "_", "-")
 			ctx.GIT_BRANCH = branchName
 			ctx.GIT_BRANCH_SLUG = branchSlug
-
 		}
 
 		gitRootCmd, err := exec.Command("/usr/bin/git", "rev-parse", "--show-toplevel").Output()

@@ -11,10 +11,9 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// cloneCmd represents the clone command
 var cloneCmd = &cobra.Command{
 	Use:   "clone [repo]",
-	Short: "Clone a git repository from Cyberwoven's Bitbucket workspace",
+	Short: "Clone a git repository from default git workspace",
 	Run: func(cmd *cobra.Command, args []string) {
 		if len(args) == 0 {
 			fmt.Println("Please specify a repository to clone.")
@@ -24,7 +23,11 @@ var cloneCmd = &cobra.Command{
 		REPO_NAME := args[0]
 
 		fmt.Printf("[%s] Cloning site...\n", REPO_NAME)
-		repo_url := fmt.Sprintf("%s@%s:%s/%s", ctx.GIT_DEFAULT_USER, ctx.GIT_DEFAULT_DOMAIN, ctx.GIT_DEFAULT_WORKSPACE, REPO_NAME)
+		repo_url := fmt.Sprintf("%s@%s:%s/%s",
+			ctx.GIT_DEFAULT_USER,
+			ctx.GIT_DEFAULT_DOMAIN,
+			ctx.GIT_DEFAULT_WORKSPACE,
+			REPO_NAME)
 		project_root := fmt.Sprintf("%s/%s", ctx.SITES_DIR, REPO_NAME)
 		cloneCmd := exec.Command("git", "clone", repo_url, project_root, "--progress", "--verbose")
 		stdout, _ := cloneCmd.StdoutPipe()
