@@ -7,13 +7,11 @@ import (
 	"log"
 	"os"
 	"os/exec"
-	"os/user"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 )
 
 var pullDbCmd = &cobra.Command{
@@ -24,25 +22,11 @@ var pullDbCmd = &cobra.Command{
 		isFlaggedVerbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
 		isFlaggedSlow, _ := rootCmd.PersistentFlags().GetBool("slow")
 		isFlaggedForce, _ := rootCmd.PersistentFlags().GetBool("force")
-
 		explicitDatabaseName, _ := cmd.PersistentFlags().GetString("name")
 
-		user, err := user.Current()
+		err := os.MkdirAll(ctx.DATABASE_IMPORT_DIR, os.ModePerm)
 		if err != nil {
-			log.Fatalf(err.Error())
-		}
-
-		username := user.Username
-
-		databaseDumpParentDir := viper.GetString("CWCLI_DATABASE_IMPORT_DIR")
-		if databaseDumpParentDir == "" {
-			homeDir, _ := os.UserHomeDir()
-			databaseDumpParentDir = homeDir + "/.cw/database_dumps"
-		}
-
-		err = os.MkdirAll(databaseDumpParentDir, os.ModePerm)
-		if err != nil {
-			fmt.Printf("UNABLE TO MKDIR [%s]: %s", databaseDumpParentDir, err.Error())
+			fmt.Printf("UNABLE TO MKDIR [%s]: %s", ctx.DATABASE_IMPORT_DIR, err.Error())
 			os.Exit(1)
 		}
 
@@ -53,9 +37,7 @@ var pullDbCmd = &cobra.Command{
 		if explicitDatabaseName != "" {
 			databaseName = explicitDatabaseName
 		} else {
-			// vars = cwutils.GetProjectVars()
-			// cwutils.CheckLocalConfigOverrides(vars.Project_root)
-			tempFilePath = fmt.Sprintf("%s/%s.sql.gz", databaseDumpParentDir, ctx.DATABASE_NAME)
+			tempFilePath = fmt.Sprintf("%s/%s.sql.gz", ctx.DATABASE_IMPORT_DIR, ctx.DATABASE_NAME)
 			gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, ctx.DATABASE_NAME)
 			databaseName = ctx.DATABASE_NAME
 		}
@@ -91,7 +73,7 @@ var pullDbCmd = &cobra.Command{
 
 			if !isFlaggedSlow {
 
-				databaseDumpDir := fmt.Sprintf("%s/%s", databaseDumpParentDir, databaseName)
+				databaseDumpDir := fmt.Sprintf("%s/%s", ctx.DATABASE_IMPORT_DIR, databaseName)
 
 				err = os.MkdirAll(databaseDumpDir, os.ModePerm)
 				if err != nil {
@@ -111,7 +93,7 @@ var pullDbCmd = &cobra.Command{
 
 				fmt.Printf("[%s] Downloading remote database '%s'...\n", siteName, databaseName)
 				rsyncSrc := fmt.Sprintf("%s@%s:~/backups/transient/%s", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST, databaseName)
-				rsyncOutput, _ := exec.Command("rsync", "-avz", rsyncSrc, databaseDumpParentDir, "--delete").CombinedOutput()
+				rsyncOutput, _ := exec.Command("rsync", "-avz", rsyncSrc, ctx.DATABASE_IMPORT_DIR, "--delete").CombinedOutput()
 
 				if isFlaggedVerbose {
 					fmt.Printf("%s\n", rsyncOutput)
@@ -121,7 +103,7 @@ var pullDbCmd = &cobra.Command{
 					fmt.Printf("[%s] Dumping local session table %s\n", siteName, databaseDumpDir)
 
 					mydumperArgs := []string{
-						"--user", username,
+						"--user", ctx.USERNAME,
 						"--database", databaseName,
 						"--regex", fmt.Sprintf("%s.sessions", databaseName),
 						"--outputdir", databaseDumpDir,
@@ -137,7 +119,7 @@ var pullDbCmd = &cobra.Command{
 				fmt.Printf("[%s] Importing database files from %s\n", siteName, databaseDumpDir)
 
 				myloaderArgs := []string{
-					"--user", username,
+					"--user", ctx.USERNAME,
 					"--database", databaseName,
 					"--directory", databaseDumpDir,
 					"--overwrite-tables",
