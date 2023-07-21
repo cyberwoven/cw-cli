@@ -6,7 +6,6 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -52,24 +51,14 @@ var cloneCmd = &cobra.Command{
 			settingsCopyCmd.Run()
 
 			// pull db
-			pullDbCmd.Run(cmd, []string{})
-
-			// logout all users first, so we avoid the access denied error if we're already logged in
-			truncateSessionsCmd := exec.Command("drush", "sqlq", "TRUNCATE sessions")
-			truncateSessionsCmd.Run()
-
-			LOCAL_URI := fmt.Sprintf("%s.test", REPO_NAME)
-
-			drushUliCmd := exec.Command("drush", "uli", fmt.Sprintf("--uri=%s", LOCAL_URI), "--no-browser")
-			LOGIN_URL, err := drushUliCmd.Output()
+			newSitePullDbCmd := exec.Command("cw", "pull", "db")
+			err := newSitePullDbCmd.Run()
 			if err != nil {
 				fmt.Println(string(err.Error()))
 				os.Exit(1)
 			}
 
-			// open browser and login automagically
-			openCmd := exec.Command("open", fmt.Sprintf("%s?destination=admin/reports/status", strings.TrimSpace(string(LOGIN_URL))))
-			openCmd.Run()
+			exec.Command("cw", "uli").Run()
 		}
 	},
 }
