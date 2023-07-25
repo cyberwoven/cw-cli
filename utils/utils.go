@@ -117,13 +117,17 @@ func GetContext() Context {
 		ctx.SITES_DIR = sitesDir
 	}
 
+	ctx.DEFAULT_CONFIG_DIR = filepath.Join(USER_HOME_DIRECTORY, ".cw")
 	ctx.GIT_DEFAULT_USER = configVars["GIT_USER"]
 	ctx.GIT_DEFAULT_DOMAIN = configVars["GIT_DOMAIN"]
 	ctx.GIT_DEFAULT_WORKSPACE = configVars["GIT_WORKSPACE"]
 	ctx.SSH_TEST_USER = configVars["SSH_USER"]
 	ctx.SSH_TEST_HOST = configVars["SSH_TEST_SERVER"]
 	ctx.TASK_URL_PREFIX = configVars["TASK_URL_PREFIX"]
-	ctx.DEFAULT_CONFIG_DIR = filepath.Join(USER_HOME_DIRECTORY, ".cw")
+	ctx.DATABASE_NAME = configVars["DATABASE_NAME"]
+	if ctx.DATABASE_NAME != "" {
+		ctx.HAS_DATABASE = true
+	}
 
 	if configVars["DATABASE_IMPORT_DIR"] == "" {
 		ctx.DATABASE_IMPORT_DIR = ctx.HOME_DIR + "/.cw/database_dumps"
@@ -188,44 +192,48 @@ func GetContext() Context {
 		hasIndexPhp = true
 	}
 
+	var drushStatus DrushStatus
 	if hasIndexPhp && ctx.SITE_TYPE != "wordpress" {
 		drushCmd := exec.Command("drush", "status", "--format=json")
 		drushCmdOutput, err := drushCmd.Output()
 		if err == nil {
-			var drushStatus DrushStatus
 			json.Unmarshal([]byte(drushCmdOutput), &drushStatus)
+		}
+	}
 
-			dbParts := strings.Split(drushStatus.DbName, "__")
+	if drushStatus.DrupalVersion != "" {
+		dbParts := strings.Split(drushStatus.DbName, "__")
 
-			ctx.SITE_TYPE = "drupal"
-			ctx.DRUPAL_CORE_VERSION = drushStatus.DrupalVersion
-			ctx.DATABASE_NAME = drushStatus.DbName
-			ctx.DATABASE_BASENAME = dbParts[0]
+		ctx.SITE_TYPE = "drupal"
+		ctx.DRUPAL_CORE_VERSION = drushStatus.DrupalVersion
+		ctx.DATABASE_NAME = drushStatus.DbName
+		ctx.DATABASE_BASENAME = dbParts[0]
 
-			if string(ctx.DRUPAL_CORE_VERSION[0]) == "7" {
-				ctx.IS_DRUPAL7 = true
-			}
-
-			ctx.DRUPAL_DEFAULT_DIR_LOCAL = fmt.Sprintf("%s/sites/default", ctx.SITE_DOCUMENT_ROOT)
-			ctx.DRUPAL_DEFAULT_DIR_REMOTE = fmt.Sprintf("/var/www/vhosts/%s/%s/pub/sites/default", ctx.SITE_NAME, ctx.GIT_BRANCH_SLUG)
-
-			showPrivateFiles := "echo Drupal::service('file_system')->realpath('private://');"
-			showPublicFiles := "echo Drupal::service('file_system')->realpath('public://');"
-
-			drushPrivateFiles, err := exec.Command("drush", "php:eval", showPrivateFiles).Output()
-			if err == nil {
-				ctx.DRUPAL_PRIVATE_FILES_DIR = strings.TrimSpace(string(drushPrivateFiles))
-			}
-
-			ctx.DRUPAL_PUBLIC_FILES_DIR = ctx.DRUPAL_DEFAULT_DIR_LOCAL + "/files"
-			drushPublicFiles, err := exec.Command("drush", "php:eval", showPublicFiles).Output()
-			publicFiles := strings.TrimSpace(string(drushPublicFiles))
-			if err == nil && publicFiles != "" {
-				ctx.DRUPAL_PUBLIC_FILES_DIR = publicFiles
-			}
-
+		if string(ctx.DRUPAL_CORE_VERSION[0]) == "7" {
+			ctx.IS_DRUPAL7 = true
 		}
 
+		ctx.DRUPAL_DEFAULT_DIR_LOCAL = fmt.Sprintf("%s/sites/default", ctx.SITE_DOCUMENT_ROOT)
+		ctx.DRUPAL_DEFAULT_DIR_REMOTE = fmt.Sprintf("/var/www/vhosts/%s/%s/pub/sites/default", ctx.SITE_NAME, ctx.GIT_BRANCH_SLUG)
+
+		showPrivateFiles := "echo Drupal::service('file_system')->realpath('private://');"
+		showPublicFiles := "echo Drupal::service('file_system')->realpath('public://');"
+
+		drushPrivateFiles, err := exec.Command("drush", "php:eval", showPrivateFiles).Output()
+		if err == nil {
+			ctx.DRUPAL_PRIVATE_FILES_DIR = strings.TrimSpace(string(drushPrivateFiles))
+		}
+
+		ctx.DRUPAL_PUBLIC_FILES_DIR = ctx.DRUPAL_DEFAULT_DIR_LOCAL + "/files"
+		drushPublicFiles, err := exec.Command("drush", "php:eval", showPublicFiles).Output()
+		publicFiles := strings.TrimSpace(string(drushPublicFiles))
+		if err == nil && publicFiles != "" {
+			ctx.DRUPAL_PUBLIC_FILES_DIR = publicFiles
+		}
+	}
+
+	if hasIndexPhp && ctx.SITE_TYPE == "" {
+		ctx.SITE_TYPE = "custom"
 	}
 
 	return ctx
