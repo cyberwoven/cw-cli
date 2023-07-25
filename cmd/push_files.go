@@ -56,7 +56,7 @@ var pushFilesCmd = &cobra.Command{
 			}
 
 		} else if ctx.SITE_TYPE == "wordpress" {
-			fmt.Print("push wp files")
+			fmt.Print("push wp files (not implemented yet)")
 		}
 
 	},

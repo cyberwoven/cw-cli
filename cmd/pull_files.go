@@ -7,6 +7,7 @@ import (
 	"bufio"
 	"fmt"
 	"io"
+	"os"
 	"os/exec"
 	"strings"
 
@@ -19,6 +20,13 @@ var pullFilesCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		isFlaggedVerbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
 		isFlaggedSlow, _ := rootCmd.PersistentFlags().GetBool("slow")
+		isFlaggedAll, _ := rootCmd.PersistentFlags().GetBool("all")
+
+		rsyncExcludeExists := false
+		rsyncExcludeFile := ctx.PROJECT_ROOT + "/.cw/rsync-exclude"
+		if _, err := os.Stat(rsyncExcludeFile); err == nil {
+			rsyncExcludeExists = true
+		}
 
 		fmt.Printf("[%s] Starting file pull from branch '%s'.\n", ctx.SITE_NAME, ctx.GIT_BRANCH)
 
@@ -26,23 +34,37 @@ var pullFilesCmd = &cobra.Command{
 			rsyncCmd := exec.Command("rsync")
 			if ctx.SITE_TYPE == "drupal" {
 				rsyncRemote := fmt.Sprintf("%s@%s:%s/files", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST, ctx.DRUPAL_DEFAULT_DIR_REMOTE)
-				rsyncCmd = exec.Command("rsync",
-					"-vcrtzP",
+				rsyncArgs := []string{
+					"-vrtzP",
 					rsyncRemote,
 					ctx.DRUPAL_DEFAULT_DIR_LOCAL,
 					"--stats",
-					"--exclude=advagg_css",
-					"--exclude=advagg_js",
-					"--exclude=css",
-					"--exclude=ctools",
-					"--exclude=js",
-					"--exclude=php",
-					"--exclude=styles",
-					"--exclude=tmp")
+				}
+
+				if !isFlaggedAll {
+					rsyncStandardExcludes := []string{
+						"--exclude=advagg_css",
+						"--exclude=advagg_js",
+						"--exclude=css",
+						"--exclude=ctools",
+						"--exclude=js",
+						"--exclude=php",
+						"--exclude=styles",
+						"--exclude=tmp",
+					}
+
+					rsyncArgs = append(rsyncArgs, rsyncStandardExcludes...)
+
+					if rsyncExcludeExists {
+						rsyncArgs = append(rsyncArgs, "--exclude-from="+rsyncExcludeFile)
+					}
+				}
+
+				rsyncCmd = exec.Command("rsync", rsyncArgs...)
 			} else if ctx.SITE_TYPE == "wordpress" {
 				rsyncRemote := fmt.Sprintf("%s@%s:%s/", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST, ctx.WP_UPLOADS_DIR_REMOTE)
 				rsyncCmd = exec.Command("rsync",
-					"-vcrtzP",
+					"-vrtzP",
 					rsyncRemote,
 					ctx.WP_UPLOADS_DIR_LOCAL,
 					"--stats")

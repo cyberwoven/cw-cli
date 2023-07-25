@@ -31,4 +31,5 @@ func init() {
 	rootCmd.PersistentFlags().BoolP("force", "f", false, "Force stuff to happen.")
 	rootCmd.PersistentFlags().BoolP("fast", "F", false, "Use experimental fast versions of commands, where available.")
 	rootCmd.PersistentFlags().BoolP("slow", "S", false, "Use slower (more stable) pull comand.")
+	rootCmd.PersistentFlags().BoolP("all", "A", false, "Be complete with the command, i.e., ALL files.")
 }
