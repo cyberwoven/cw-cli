@@ -4,7 +4,10 @@ Copyright © 2022 NAME HERE <EMAIL ADDRESS>
 package cmd
 
 import (
+	"bytes"
 	"fmt"
+	"io"
+	"net/http"
 	"os"
 	"os/exec"
 
@@ -68,8 +71,55 @@ func newSite() {
 		os.Exit(1)
 	}
 
-	// url := fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s/%s", ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
-	// getRepoResponse := bitbucketApiRequest("GET", url)
+	// check if repo exists (hopefully not)
+	url := fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s/%s", ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
+	status, _ := bbApi("GET", url, "")
+	if status != 404 {
+		fmt.Println("ABORT: Unable to push new site, remote repo already exists.")
+		os.Exit(1)
+	}
+
+	// create repo
+	url = fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s/%s", ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
+	payload := fmt.Sprintf(`{
+		"scm": "git",
+		"project": {
+			"key": "%s"
+		}
+	}`, "DRUP")
+	status, _ = bbApi("POST", url, payload)
+	if status != 200 {
+		fmt.Println("ABORT: Unable to push new site, could not create new remote repo.")
+		os.Exit(1)
+	}
+
+	// add test deploy key to repo
+	url = fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s/%s/deploy-keys", ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
+	payload = fmt.Sprintf(`{
+		"key": "%s",
+		"label": "Autopilot"
+	}`, ctx.TEST_SERVER_DEPLOY_KEY)
+	status, _ = bbApi("POST", url, payload)
+	if status != 200 {
+		fmt.Println("ABORT: Unable to push new site, could not add deploy key to new remote repo.")
+		os.Exit(1)
+	}
+
+	// add test webhook to repo
+	url = fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s/%s/hooks", ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
+	payload = fmt.Sprintf(`{
+		"description": "Autopilot",
+		"url": "%s",
+		"active": true,
+		"events": [
+			"repo:push"
+		]
+	}`, ctx.BITBUCKET_WEBHOOK_URL)
+	status, _ = bbApi("POST", url, payload)
+	if status != 200 {
+		fmt.Println("ABORT: Unable to push new site, could not add autopilot webhook to new remote repo.")
+		os.Exit(1)
+	}
 
 	// 1. ensure we have the necessary configs (BB app key, git host, git user, deploykey, webhook url, etc)
 	// 2. check to see if remote repo already exists
@@ -77,6 +127,24 @@ func newSite() {
 	// 4. set remote url on local git repo
 	// 5. git push
 	// 6. forest create-site <domain> over ssh to default test server
+}
+
+func bbApi(method string, url string, payload string) (int, string) {
+	body := bytes.NewBuffer([]byte(payload))
+	req, err := http.NewRequest(method, url, body)
+	req.SetBasicAuth(ctx.BITBUCKET_USERNAME, ctx.BITBUCKET_APP_PASSWORD)
+	req.Header.Set("Content-Type", "application/json")
+
+	client := &http.Client{}
+	res, err := client.Do(req)
+	if err != nil {
+		panic(err)
+	}
+	defer res.Body.Close()
+
+	resBody, _ := io.ReadAll(res.Body)
+
+	return res.StatusCode, string(resBody)
 }
 
 func hasGitRemote(dir string) bool {
