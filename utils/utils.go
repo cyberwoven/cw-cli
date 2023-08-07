@@ -52,6 +52,11 @@ type Context struct {
 	WP_UPLOADS_DIR_LOCAL      string
 	WP_UPLOADS_DIR_REMOTE     string
 	TASK_URL_PREFIX           string
+	BITBUCKET_USERNAME        string
+	BITBUCKET_APP_PASSWORD    string
+	BITBUCKET_API_PREFIX      string
+	BITBUCKET_WEBHOOK_URL     string
+	TEST_SERVER_DEPLOY_KEY    string
 }
 
 func GetContext() Context {
@@ -125,6 +130,12 @@ func GetContext() Context {
 	ctx.SSH_TEST_HOST = configVars["SSH_TEST_SERVER"]
 	ctx.TASK_URL_PREFIX = configVars["TASK_URL_PREFIX"]
 	ctx.DATABASE_NAME = configVars["DATABASE_NAME"]
+	ctx.BITBUCKET_USERNAME = configVars["BITBUCKET_USERNAME"]
+	ctx.BITBUCKET_APP_PASSWORD = configVars["BITBUCKET_APP_PASSWORD"]
+	ctx.BITBUCKET_API_PREFIX = configVars["BITBUCKET_API_PREFIX"]
+	ctx.BITBUCKET_WEBHOOK_URL = configVars["BITBUCKET_WEBHOOK_URL"]
+	ctx.TEST_SERVER_DEPLOY_KEY = configVars["TEST_SERVER_DEPLOY_KEY"]
+
 	if ctx.DATABASE_NAME != "" {
 		ctx.HAS_DATABASE = true
 	}

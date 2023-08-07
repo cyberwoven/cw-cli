@@ -152,9 +152,6 @@ func createDrupal(domain string, database string, theme string) {
 	fmt.Println("New site is ready!")
 	url := uliGenerateLink(projectRoot, domain+".test")
 	uliOpenLink(url)
-
-	os.Chdir(ctx.SITE_DOCUMENT_ROOT + "/" + domain)
-	exec.Command("cw", "uli").Run()
 }
 
 func createNetlify(domain string) {
