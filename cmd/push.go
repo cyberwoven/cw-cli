@@ -21,8 +21,14 @@ var pushCmd = &cobra.Command{
 	Short: "Push the current site's database and/or files to the test server",
 	Run: func(cmd *cobra.Command, args []string) {
 		isNew := createTestSite()
+
+		if ctx.SITE_TYPE == "" {
+			return
+		}
+
 		pushDbCmd.Run(cmd, []string{})
 		pushFilesCmd.Run(cmd, []string{})
+
 		if isNew {
 			url := uliGenerateTestLink()
 			uliOpenLink(url)
