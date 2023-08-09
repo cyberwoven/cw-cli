@@ -22,14 +22,14 @@ var pushCmd = &cobra.Command{
 	Run: func(cmd *cobra.Command, args []string) {
 		isNew := createTestSite()
 
-		if ctx.SITE_TYPE == "" {
-			return
+		if ctx.HAS_DATABASE {
+			pushDbCmd.Run(cmd, []string{})
+			pushFilesCmd.Run(cmd, []string{})
+		} else {
+			fmt.Println("This site has no database, so nothing to push.")
 		}
 
-		pushDbCmd.Run(cmd, []string{})
-		pushFilesCmd.Run(cmd, []string{})
-
-		if isNew {
+		if isNew && ctx.SITE_TYPE == "drupal" {
 			url := uliGenerateTestLink()
 			uliOpenLink(url)
 		}
@@ -38,14 +38,13 @@ var pushCmd = &cobra.Command{
 
 func init() {
 	rootCmd.AddCommand(pushCmd)
-	pushCmd.Flags().BoolP("new", "n", false, "Creating the git repo and test site before pushing.")
 }
 
 func createTestSite() bool {
 	// Check to see if the site exists on the Test server.
 	// If it does, then we'll return, and simply push the DB and files
 	// If it does not, then we'll see if the git remote needs to be created
-	remoteSiteExistsCmd := fmt.Sprintf(`[[ -d /var/www/vhosts/%s ]] && echo "YES" || echo "NO"`, "www.ptc.edun")
+	remoteSiteExistsCmd := fmt.Sprintf(`[[ -d /var/www/vhosts/%s ]] && echo "YES" || echo "NO"`, ctx.SITE_NAME)
 	remoteHost := fmt.Sprintf("%s@%s", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST)
 	output, err := exec.Command("ssh", remoteHost, remoteSiteExistsCmd).Output()
 	if err != nil {
@@ -54,7 +53,6 @@ func createTestSite() bool {
 
 	siteExists := strings.TrimSpace(string(output))
 	if siteExists == "YES" {
-		fmt.Println("Site already exists on test, proceed with db and file push...")
 		return false
 	}
 
