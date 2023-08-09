@@ -21,7 +21,7 @@ var createCmd = &cobra.Command{
 
 		siteTypePrompt := promptui.Select{
 			Label: "Site type",
-			Items: []string{"Drupal", "Netlify", "Wordpress"},
+			Items: []string{"Drupal", "Static", "Wordpress"},
 		}
 
 		_, siteType, err := siteTypePrompt.Run()
@@ -58,8 +58,8 @@ var createCmd = &cobra.Command{
 			return
 		}
 
-		if siteType == "Netlify" {
-			createNetlify(domain)
+		if siteType == "Static" {
+			createStatic(domain)
 			return
 		}
 
@@ -154,8 +154,30 @@ func createDrupal(domain string, database string, theme string) {
 	uliOpenLink(url)
 }
 
-func createNetlify(domain string) {
-	fmt.Print("Creating a Netlify site. (Not implemented yet)")
+func createStatic(domain string) {
+	fmt.Print("Creating a Drupal site, this will take a minute or two...")
+
+	projectRoot := ctx.SITES_DIR + "/" + domain
+	composerCmd := exec.Command(
+		"composer",
+		"create-project",
+		"cyberwoven/static-starter",
+		projectRoot,
+	)
+
+	stdout, _ := composerCmd.StdoutPipe()
+	stderr, _ := composerCmd.StderrPipe()
+
+	_ = composerCmd.Start()
+
+	scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
+	scanner.Split(bufio.ScanLines)
+	for scanner.Scan() {
+		m := scanner.Text()
+		fmt.Println(m)
+	}
+
+	_ = composerCmd.Wait()
 }
 
 func createWordpress(domain string, database string, theme string) {
