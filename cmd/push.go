@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 
 	"github.com/spf13/cobra"
 )
@@ -19,14 +20,13 @@ var pushCmd = &cobra.Command{
 	Use:   "push",
 	Short: "Push the current site's database and/or files to the test server",
 	Run: func(cmd *cobra.Command, args []string) {
-		isFlaggedNew, _ := cmd.Flags().GetBool("new")
-
-		if isFlaggedNew {
-			newSite()
+		isNew := createTestSite()
+		pushDbCmd.Run(cmd, []string{})
+		pushFilesCmd.Run(cmd, []string{})
+		if isNew {
+			url := uliGenerateTestLink()
+			uliOpenLink(url)
 		}
-
-		// pushDbCmd.Run(cmd, []string{})
-		// pushFilesCmd.Run(cmd, []string{})
 	},
 }
 
@@ -35,7 +35,23 @@ func init() {
 	pushCmd.Flags().BoolP("new", "n", false, "Creating the git repo and test site before pushing.")
 }
 
-func newSite() {
+func createTestSite() bool {
+	// Check to see if the site exists on the Test server.
+	// If it does, then we'll return, and simply push the DB and files
+	// If it does not, then we'll see if the git remote needs to be created
+	remoteSiteExistsCmd := fmt.Sprintf(`[[ -d /var/www/vhosts/%s ]] && echo "YES" || echo "NO"`, "www.ptc.edun")
+	remoteHost := fmt.Sprintf("%s@%s", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST)
+	output, err := exec.Command("ssh", remoteHost, remoteSiteExistsCmd).Output()
+	if err != nil {
+		panic(err)
+	}
+
+	siteExists := strings.TrimSpace(string(output))
+	if siteExists == "YES" {
+		fmt.Println("Site already exists on test, proceed with db and file push...")
+		return false
+	}
+
 	if ctx.BITBUCKET_USERNAME == "" || ctx.BITBUCKET_APP_PASSWORD == "" {
 		fmt.Println("ABORT: Unable to push new site, Bitbucket API creds are required.\nSee https://bitbucket.org/account/settings/app-passwords/")
 		os.Exit(1)
@@ -72,6 +88,7 @@ func newSite() {
 	}
 
 	// check if repo exists (hopefully not)
+	fmt.Printf(" - Checking Bitbucket for repo existence [%s/%s]\n", ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
 	url := fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s/%s", ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
 	status, _ := bbApi("GET", url, "")
 	if status != 404 {
@@ -80,20 +97,23 @@ func newSite() {
 	}
 
 	// create repo
+	fmt.Printf(" - Creating repo [%s/%s]\n", ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
 	url = fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s/%s", ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
 	payload := fmt.Sprintf(`{
 		"scm": "git",
+		"is_private": true,
 		"project": {
 			"key": "%s"
 		}
-	}`, "DRUP")
+	}`, "PROJ")
 	status, _ = bbApi("POST", url, payload)
 	if status != 200 {
-		fmt.Println("ABORT: Unable to push new site, could not create new remote repo.")
+		fmt.Printf("ABORT: Unable to push new site, could not create new remote repo [STATUS: %d].\n", status)
 		os.Exit(1)
 	}
 
 	// add test deploy key to repo
+	// fmt.Println(" - Adding deploy key")
 	url = fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s/%s/deploy-keys", ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
 	payload = fmt.Sprintf(`{
 		"key": "%s",
@@ -106,6 +126,7 @@ func newSite() {
 	}
 
 	// add test webhook to repo
+	// fmt.Println(" - Adding webhook")
 	url = fmt.Sprintf("https://api.bitbucket.org/2.0/repositories/%s/%s/hooks", ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
 	payload = fmt.Sprintf(`{
 		"description": "Autopilot",
@@ -116,22 +137,31 @@ func newSite() {
 		]
 	}`, ctx.BITBUCKET_WEBHOOK_URL)
 	status, _ = bbApi("POST", url, payload)
-	if status != 200 {
-		fmt.Println("ABORT: Unable to push new site, could not add autopilot webhook to new remote repo.")
+	if status != 201 {
+		fmt.Printf("ABORT: Unable to push new site, could not add autopilot webhook to new remote repo [STATUS:%d].\n", status)
 		os.Exit(1)
 	}
 
-	// 1. ensure we have the necessary configs (BB app key, git host, git user, deploykey, webhook url, etc)
-	// 2. check to see if remote repo already exists
-	// 3. create repo, set deploy key, set webhook url
-	// 4. set remote url on local git repo
-	// 5. git push
-	// 6. forest create-site <domain> over ssh to default test server
+	// fmt.Println(" - Adding origin remote")
+	originUrl := fmt.Sprintf("%s@%s:%s/%s", ctx.GIT_DEFAULT_USER, ctx.GIT_DEFAULT_DOMAIN, ctx.GIT_DEFAULT_WORKSPACE, ctx.SITE_NAME)
+	exec.Command("git", "remote", "add", "origin", originUrl).Run()
+
+	fmt.Println(" - Pushing repo to Bitbucket")
+	exec.Command("git", "push", "-f", "--set-upstream", "origin", "master").Run()
+
+	fmt.Println(" - Creating test site")
+	remoteLoadCmd := fmt.Sprintf("sudo forest create %s", ctx.SITE_NAME)
+	exec.Command("ssh", remoteHost, remoteLoadCmd).Run()
+
+	return true
 }
 
 func bbApi(method string, url string, payload string) (int, string) {
 	body := bytes.NewBuffer([]byte(payload))
 	req, err := http.NewRequest(method, url, body)
+	if err != nil {
+		panic(err)
+	}
 	req.SetBasicAuth(ctx.BITBUCKET_USERNAME, ctx.BITBUCKET_APP_PASSWORD)
 	req.Header.Set("Content-Type", "application/json")
 
@@ -144,6 +174,7 @@ func bbApi(method string, url string, payload string) (int, string) {
 
 	resBody, _ := io.ReadAll(res.Body)
 
+	// fmt.Printf("***\n%s\n***\n", resBody)
 	return res.StatusCode, string(resBody)
 }
 

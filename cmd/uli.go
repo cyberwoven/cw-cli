@@ -19,19 +19,9 @@ var uliCmd = &cobra.Command{
 		uid, _ := cmd.Flags().GetInt("uid")
 
 		var url string
-		var stdout []byte
-		var err error
 
 		if isFlaggedTest {
-			remoteUliCmd := fmt.Sprintf("cd %s && ~/bin/uli", ctx.DRUPAL_DEFAULT_DIR_REMOTE)
-			remoteHost := fmt.Sprintf("%s@%s", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST)
-			drushCmd := exec.Command("ssh", remoteHost, remoteUliCmd)
-			stdout, err = drushCmd.Output()
-			if err != nil {
-				fmt.Println(err.Error())
-				return
-			}
-			url = strings.TrimSpace(string(stdout))
+			url = uliGenerateTestLink()
 		} else {
 			url = uliGenerateLink(ctx.PROJECT_ROOT, ctx.SITE_NAME+".test", uid)
 		}
@@ -55,6 +45,17 @@ func uliOpenLink(url string) {
 	if err != nil {
 		fmt.Println(err.Error())
 	}
+}
+
+func uliGenerateTestLink() string {
+	remoteUliCmd := fmt.Sprintf("cd %s && ~/bin/uli", ctx.DRUPAL_DEFAULT_DIR_REMOTE)
+	remoteHost := fmt.Sprintf("%s@%s", ctx.SSH_TEST_USER, ctx.SSH_TEST_HOST)
+	drushCmd := exec.Command("ssh", remoteHost, remoteUliCmd)
+	stdout, err := drushCmd.Output()
+	if err != nil {
+		panic(err)
+	}
+	return strings.TrimSpace(string(stdout))
 }
 
 func uliGenerateLink(drupalRoot string, uri string, uids ...int) string {
