@@ -127,7 +127,7 @@ func createDrupal(domain string, database string, theme string) {
 	composerCmd := exec.Command(
 		"composer",
 		"create-project",
-		"cyberwoven/drupal",
+		"cyberwoven/drupal-starter",
 		projectRoot,
 	)
 
@@ -155,7 +155,7 @@ func createDrupal(domain string, database string, theme string) {
 }
 
 func createStatic(domain string) {
-	fmt.Print("Creating a Drupal site, this will take a minute or two...")
+	fmt.Print("Creating a static site...")
 
 	projectRoot := ctx.SITES_DIR + "/" + domain
 	composerCmd := exec.Command(
