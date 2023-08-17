@@ -194,6 +194,10 @@ func GetContext() Context {
 		if err == nil {
 			ctx.DATABASE_NAME = strings.TrimSpace(string(wpDbCmdOutput))
 		}
+
+		if ctx.DATABASE_NAME != "" {
+			ctx.HAS_DATABASE = true
+		}
 	}
 
 	// site has an index.php, but isn't WP? most likely it's Drupal, so
@@ -218,6 +222,9 @@ func GetContext() Context {
 		ctx.SITE_TYPE = "drupal"
 		ctx.DRUPAL_CORE_VERSION = drushStatus.DrupalVersion
 		ctx.DATABASE_NAME = drushStatus.DbName
+		if ctx.DATABASE_NAME != "" {
+			ctx.HAS_DATABASE = true
+		}
 		ctx.DATABASE_BASENAME = dbParts[0]
 
 		if string(ctx.DRUPAL_CORE_VERSION[0]) == "7" {
