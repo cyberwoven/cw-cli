@@ -47,7 +47,14 @@ var cloneCmd = &cobra.Command{
 		if _, err := os.Stat(project_root + "/pub/sites/default"); !os.IsNotExist(err) {
 			os.Chdir(project_root + "/pub/sites/default/")
 
-			settingsCopyCmd := exec.Command("cp", "default.settings.local.php", "settings.local.php")
+			settings_local := ""
+			if _, err := os.Stat("default.settings.local.php"); !os.IsNotExist(err) {
+				settings_local = "default.settings.local.php"
+			} else if _, err := os.Stat("default.sandbox.settings.local.php"); !os.IsNotExist(err) {
+				settings_local = "default.sandbox.settings.local.php"
+			}
+
+			settingsCopyCmd := exec.Command("cp", settings_local, "settings.local.php")
 			settingsCopyCmd.Run()
 
 			// pull db

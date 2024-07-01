@@ -21,6 +21,7 @@ var pullDbCmd = &cobra.Command{
 
 		isFlaggedVerbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
 		isFlaggedSlow, _ := rootCmd.PersistentFlags().GetBool("slow")
+		isFlaggedFast, _ := rootCmd.PersistentFlags().GetBool("fast")
 		isFlaggedForce, _ := rootCmd.PersistentFlags().GetBool("force")
 		explicitDatabaseName, _ := cmd.PersistentFlags().GetString("name")
 
@@ -38,7 +39,7 @@ var pullDbCmd = &cobra.Command{
 			databaseName = explicitDatabaseName
 		} else {
 			tempFilePath = fmt.Sprintf("%s/%s.sql.gz", ctx.DATABASE_IMPORT_DIR, ctx.DATABASE_NAME)
-			gunzipCmdString = fmt.Sprintf("gunzip < %s | mysql %s", tempFilePath, ctx.DATABASE_NAME)
+			gunzipCmdString = fmt.Sprintf("gunzip < %s | tail -n +2| mysql %s", tempFilePath, ctx.DATABASE_NAME)
 			databaseName = ctx.DATABASE_NAME
 		}
 
@@ -103,6 +104,7 @@ var pullDbCmd = &cobra.Command{
 					fmt.Printf("[%s] Dumping local session table %s\n", siteName, databaseDumpDir)
 
 					mydumperArgs := []string{
+						"--dirty",
 						"--user", ctx.USERNAME,
 						"--database", databaseName,
 						"--regex", fmt.Sprintf("%s.sessions", databaseName),
@@ -123,10 +125,19 @@ var pullDbCmd = &cobra.Command{
 					"--database", databaseName,
 					"--directory", databaseDumpDir,
 					"--overwrite-tables",
-					"--purge-mode", "TRUNCATE",
+					//"--purge-mode", "TRUNCATE",
+				}
+
+				if isFlaggedFast {
+					myloaderArgs = append(myloaderArgs, "--purge-mode", "TRUNCATE")
+				}
+
+				if isFlaggedVerbose {
+					fmt.Printf("%s", myloaderArgs)
 				}
 
 				myloaderOutput, err := exec.Command("myloader", myloaderArgs...).CombinedOutput()
+
 				if isFlaggedVerbose {
 					fmt.Printf("%s", myloaderOutput)
 				}

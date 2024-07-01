@@ -1,7 +1,10 @@
 package cmd
 
 import (
+	"bufio"
 	"fmt"
+	"io"
+	"log"
 	"os"
 	"os/exec"
 	"strings"
@@ -16,9 +19,9 @@ var phpCmd = &cobra.Command{
 
 	Run: func(cmd *cobra.Command, args []string) {
 
-		if len(args) != 1 {
-			fmt.Println("No new PHP version specified, sticking with current version.")
-			os.Exit(0)
+		if len(args) == 0 {
+			// `cw php` invoked (no args) so autodetect bin path
+			return
 		}
 
 		newVersion := args[0]
@@ -62,13 +65,29 @@ var phpCmd = &cobra.Command{
 		}
 
 		if validVersion {
-			fmt.Println("Switching to PHP version", newVersion)
+			fmt.Printf("Switching PHP version %s -> %s\n", currentVersion, newVersion)
 
 			unlinkCmd := exec.Command("brew", "unlink", "php@"+currentVersion)
-			unlinkCmd.Run()
+			fmt.Printf("Command: [%s]\n", unlinkCmd.String())
+
+			stdout, _ := unlinkCmd.StdoutPipe()
+			stderr, _ := unlinkCmd.StderrPipe()
+
+			_ = unlinkCmd.Start()
+
+			scanner := bufio.NewScanner(io.MultiReader(stdout, stderr))
+			scanner.Split(bufio.ScanLines)
+			for scanner.Scan() {
+				m := scanner.Text()
+				fmt.Println(m)
+			}
+
+			_ = unlinkCmd.Wait()
 
 			linkCmd := exec.Command("brew", "link", "php@"+newVersion, "--force", "--overwrite")
-			linkCmd.Run()
+			if err := linkCmd.Run(); err != nil {
+				log.Fatal(err)
+			}
 
 		} else {
 			fmt.Println("PHP version", newVersion, "is not available.")
