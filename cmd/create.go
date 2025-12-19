@@ -5,6 +5,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"log"
 	"os"
 	"os/exec"
 	"regexp"
@@ -122,6 +123,17 @@ var createCmd = &cobra.Command{
 
 func createDrupal(domain string, database string, theme string) {
 	fmt.Print("Creating a Drupal site, this will take a minute or two...")
+
+	/**
+	 * Create the database here, to ensure it gets the proper charset & collation
+	 */
+	err := exec.Command("mysqladmin", "create", database).Run()
+	if err != nil {
+		fmt.Printf("Unable to create database %s\n", database)
+		log.Fatal(err)
+	} else {
+		fmt.Printf("Created database! %s\n", database)
+	}
 
 	projectRoot := ctx.SITES_DIR + "/" + domain
 	composerCmd := exec.Command(
