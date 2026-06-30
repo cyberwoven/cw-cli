@@ -21,7 +21,7 @@ var pullDbCmd = &cobra.Command{
 
 		isFlaggedVerbose, _ := rootCmd.PersistentFlags().GetBool("verbose")
 		isFlaggedSlow, _ := rootCmd.PersistentFlags().GetBool("slow")
-		isFlaggedFast, _ := rootCmd.PersistentFlags().GetBool("fast")
+		// isFlaggedFast, _ := rootCmd.PersistentFlags().GetBool("fast")
 		isFlaggedForce, _ := rootCmd.PersistentFlags().GetBool("force")
 		explicitDatabaseName, _ := cmd.PersistentFlags().GetString("name")
 
@@ -33,6 +33,7 @@ var pullDbCmd = &cobra.Command{
 
 		var tempFilePath string
 		var gunzipCmdString string
+		var isNewDatabase = false
 
 		databaseName := ""
 		if explicitDatabaseName != "" {
@@ -66,6 +67,7 @@ var pullDbCmd = &cobra.Command{
 		err = exec.Command("mysqladmin", "create", databaseName).Run()
 		if err == nil {
 			fmt.Printf("[%s] Database '%s' was just created, proceeding with a fresh import...\n", siteName, databaseName)
+			isNewDatabase = true
 		}
 
 		if !ctx.IS_PANTHEON {
@@ -124,12 +126,13 @@ var pullDbCmd = &cobra.Command{
 					"--user", ctx.USERNAME,
 					"--database", databaseName,
 					"--directory", databaseDumpDir,
-					"--overwrite-tables",
-					//"--purge-mode", "TRUNCATE",
+					"--skip-constraints",
+					"--skip-indexes",
+					// "--append-if-not-exist",
 				}
 
-				if isFlaggedFast {
-					myloaderArgs = append(myloaderArgs, "--purge-mode", "TRUNCATE")
+				if !isNewDatabase {
+					myloaderArgs = append(myloaderArgs, "--drop-table", "DELETE")
 				}
 
 				if isFlaggedVerbose {
