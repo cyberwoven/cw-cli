@@ -178,8 +178,17 @@ func GetContext() Context {
 	}
 
 	// dirty check for Pantheon
-	if _, err := os.Stat(ctx.PROJECT_ROOT + "/pantheon.yml"); err == nil {
-		ctx.IS_PANTHEON = true
+	if ctx.IS_GIT_REPO {
+		gitRemoteCmd, err := exec.Command("/usr/bin/git", "remote", "-v").Output()
+		if err == nil {
+			for _, line := range strings.Split(string(gitRemoteCmd), "\n") {
+				fields := strings.Fields(line)
+				if len(fields) >= 2 && strings.HasSuffix(fields[1], ".drush.in") {
+					ctx.IS_PANTHEON = true
+					break
+				}
+			}
+		}
 	}
 
 	// dirty check for wordpress
