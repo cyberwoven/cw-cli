@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log"
+	"net/url"
 	"os"
 	"os/exec"
 	"os/user"
@@ -57,6 +58,25 @@ type Context struct {
 	BITBUCKET_API_PREFIX      string
 	BITBUCKET_WEBHOOK_URL     string
 	TEST_SERVER_DEPLOY_KEY    string
+}
+
+// gitRemoteHostname extracts the hostname from a git remote URL, supporting
+// both standard URL syntax (e.g. ssh://user@host:port/path) and scp-like
+// syntax (e.g. user@host:path).
+func gitRemoteHostname(remote string) string {
+	if u, err := url.Parse(remote); err == nil && u.Host != "" {
+		return u.Hostname()
+	}
+
+	host := remote
+	if at := strings.LastIndex(host, "@"); at != -1 {
+		host = host[at+1:]
+	}
+	if colon := strings.Index(host, ":"); colon != -1 {
+		host = host[:colon]
+	}
+
+	return host
 }
 
 func GetContext() Context {
@@ -183,7 +203,7 @@ func GetContext() Context {
 		if err == nil {
 			for _, line := range strings.Split(string(gitRemoteCmd), "\n") {
 				fields := strings.Fields(line)
-				if len(fields) >= 2 && strings.HasSuffix(fields[1], ".drush.in") {
+				if len(fields) >= 2 && strings.HasSuffix(gitRemoteHostname(fields[1]), ".drush.in") {
 					ctx.IS_PANTHEON = true
 					break
 				}
